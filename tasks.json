@@ -1,0 +1,5 @@
+[
+  {"id": 1, "task_name": "implement_core", "description": "實作 Calculator.vue 的邏輯與 UI", "status": "completed"},
+  {"id": 2, "task_name": "error_handling", "description": "加入除以零的錯誤處理機制", "status": "completed"},
+  {"id": 3, "task_name": "unit_test", "description": "執行單元測試驗證邏輯正確性", "status": "completed"}
+]

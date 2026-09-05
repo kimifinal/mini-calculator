@@ -1,0 +1,114 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue.js 計算機成品</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
+        .calculator { border: 1px solid #ccc; padding: 20px; width: 260px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .display { background: #222; color: #0f0; font-family: 'Courier New', monospace; padding: 20px; text-align: right; font-size: 2rem; border-radius: 6px; margin-bottom: 20px; min-height: 40px; overflow: hidden; }
+        .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        button { padding: 15px; font-size: 1.2rem; border: none; border-radius: 8px; background: #e0e0e0; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #d0d0d0; }
+        button.operator { background: #ff9500; color: white; }
+        button.operator:hover { background: #e68600; }
+        button.equals { background: #2ecc71; color: white; grid-column: span 2; }
+        button.reset { background: #e74c3c; color: white; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="calculator">
+        <div class="display">{{ displayValue }}</div>
+        <div class="buttons">
+            <button @click="handleNumber('7')">7</button>
+            <button @click="handleNumber('8')">8</button>
+            <button @click="handleNumber('9')">9</button>
+            <button class="operator" @click="handleOp('/')">/</button>
+            
+            <button @click="handleNumber('4')">4</button>
+            <button @click="handleNumber('5')">5</button>
+            <button @click="handleNumber('6')">6</button>
+            <button class="operator" @click="handleOp('*')">*</button>
+            
+            <button @click="handleNumber('1')">1</button>
+            <button @click="handleNumber('2')">2</button>
+            <button @click="handleNumber('3')">3</button>
+            <button class="operator" @click="handleOp('-')">-</button>
+            
+            <button @click="handleNumber('0')">0</button>
+            <button class="reset" @click="reset">C</button>
+            <button class="equals" @click="calculate">=</button>
+            <button class="operator" @click="handleOp('+')">+</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const { createApp, ref } = Vue;
+
+createApp({
+    setup() {
+        const displayValue = ref('0');
+        const firstOperand = ref(null);
+        const operator = ref(null);
+        const waitingForSecondOperand = ref(false);
+
+        const handleNumber = (num) => {
+            if (displayValue.value === '0' || waitingForSecondOperand.value) {
+                displayValue.value = num;
+                waitingForSecondOperand.value = false;
+            } else {
+                displayValue.value += num;
+            }
+        };
+
+        const handleOp = (op) => {
+            firstOperand.value = parseFloat(displayValue.value);
+            operator.value = op;
+            waitingForSecondOperand.value = true;
+        };
+
+        const calculate = () => {
+            const secondOperand = parseFloat(displayValue.value);
+            let result = 0;
+
+            switch (operator.value) {
+                case '+': result = firstOperand.value + secondOperand; break;
+                case '-': result = firstOperand.value - secondOperand; break;
+                case '*': result = firstOperand.value * secondOperand; break;
+                case '/': 
+                    if (secondOperand === 0) {
+                        displayValue.value = "Error";
+                        return;
+                    }
+                    result = firstOperand.value / secondOperand; 
+                    break;
+            }
+            
+            displayValue.value = String(result);
+            firstOperand.value = null;
+            operator.value = null;
+        };
+
+        const reset = () => {
+            displayValue.value = '0';
+            firstOperand.value = null;
+            operator.value = null;
+        };
+
+        return {
+            displayValue,
+            handleNumber,
+            handleOp,
+            calculate,
+            reset
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
