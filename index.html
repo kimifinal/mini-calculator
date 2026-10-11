@@ -99,7 +99,6 @@
             background: rgba(255, 255, 255, 0.07);
             color: var(--text-main);
             cursor: pointer;
-            /* Faster transition for snappy feel */
             transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
             display: flex;
             justify-content: center;
@@ -113,7 +112,7 @@
 
         button:active { transform: translateY(0) scale(0.95); }
 
-        /* Target: () , % , + , - , * , / (Light Green) */
+        /* Target: (), %, +, -, *, / (Light Green) */
         button.operator, button.special-func {
             background: oklch(85% 0.12 150 / 0.2);
             color: oklch(85% 0.15 150);
@@ -148,19 +147,19 @@
         <div class="buttons">
             <button class="ac" @click="reset">AC</button>
             <button class="special-func" @click="handleParentheses">()</button>
-            <button classs="special-func" @click="handlePercentage">%</button>
+            <button class="special-func" @click="handlePercentage">%</button>
             <button class="operator" @click="handleOp('/')">÷</button>
-
+            
             <button @click="handleNumber('7')">7</button>
             <button @click="handleNumber('8')">8</button>
             <button @click="handleNumber('9')">9</button>
             <button class="operator" @click="handleOp('*')">×</button>
-
+            
             <button @click="handleNumber('4')">4</button>
             <button @click="handleNumber('5')">5</button>
             <button @click="handleNumber('6')">6</button>
             <button class="operator" @click="handleOp('-')">−</button>
-
+            
             <button @click="handleNumber('1')">1</button>
             <button @click="handleNumber('2')">2</button>
             <button @click="handleNumber('3')">3</button>
