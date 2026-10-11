@@ -1,48 +1,189 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vue.js 計算機成品</title>
+    <title>Cinematic Glass Calculator</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin: 0; }
-        .calculator { border: 1px solid #ccc; padding: 20px; width: 260px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .display { background: #222; color: #0f0; font-family: 'Courier New', monospace; padding: 20px; text-align: right; font-size: 2rem; border-radius: 6px; margin-bottom: 20px; min-height: 40px; overflow: hidden; }
-        .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        button { padding: 15px; font-size: 1.2rem; border: none; border-radius: 8px; background: #e0e0e0; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #d0d0d0; }
-        button.operator { background: #ff9500; color: white; }
-        button.operator:hover { background: #e68600; }
-        button.equals { background: #2ecc71; color: white; grid-column: span 2; }
-        button.reset { background: #e74c3c; color: white; }
+        :root {
+            /* OKLCH Colors for perceptual uniformity */
+            --bg-indigo: oklch(50% 0.15 260);
+            --bg-purple: oklch(55% 0.18 300);
+            --bg-teal: oklch(70% 0.12 180);
+            
+            --glass-bg: oklch(98% 0.01 260 / 0.15);
+            --glass-border: oklch(100% 0 / 0 / 0.2);
+            
+            --text-main: oklch(95% 0.02 260);
+            --accent-orange: oklch(70% 0.2 45);
+            --accent-green: oklch(75% 0.15 145);
+            --accent-red: oklch(60% 0.2 25);
+            
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-sans);
+            overflow: hidden;
+            /* Animated Mesh Gradient Background */
+            background: linear-gradient(135deg, var(--bg-indigo), var(--bg-purple), var(--bg-teal));
+            background-size: 400% 400%;
+            animation: bgGradient 15s ease infinite;
+        }
+
+        @keyframes bgGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .calculator-container {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Glassmorphism Card */
+        .calculator {
+            position: relative;
+            z-index: 10;
+            width: 320px;
+            padding: 30px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Glowing background decoration */
+        .glow {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: var(--bg-teal);
+            filter: blur(80px);
+            border-radius: 50%;
+            z-index: 0;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.4;
+        }
+
+        .display {
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-main);
+            padding: 25px;
+            text-align: right;
+            font-size: 2.5rem;
+            font-weight: 300;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            word-break: break-all;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        button {
+            aspect-ratio: 1;
+            font-size: 1.25rem;
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        button.operator {
+            background: rgba(255, 149, 0, 0.15);
+            color: oklch(75% 0.2 45);
+            font-weight: 600;
+        }
+
+        button.operator:hover {
+            background: oklch(75% 0.2 45 / 0.3);
+        }
+
+        button.equals {
+            background: oklch(75% 0.15 145 / 0.8);
+            color: white;
+            grid-column: span 2;
+            aspect-ratio: auto;
+        }
+
+        button.reset {
+            background: oklch(60% 0.2 25 / 0.2);
+            color: oklch(65% 0.2 25);
+        }
+
+        /* Animation for display update */
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.2s ease;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
 <div id="app">
-    <div class="calculator">
-        <div class="display">{{ displayValue }}</div>
-        <div class="buttons">
-            <button @click="handleNumber('7')">7</button>
-            <button @click="handleNumber('8')">8</button>
-            <button @click="handleNumber('9')">9</button>
-            <button class="operator" @click="handleOp('/')">/</button>
-            
-            <button @click="handleNumber('4')">4</button>
-            <button @click="handleNumber('5')">5</button>
-            <button @click="handleNumber('6')">6</button>
-            <button class="operator" @click="handleOp('*')">*</button>
-            
-            <button @click="handleNumber('1')">1</button>
-            <button @click="handleNumber('2')">2</button>
-            <button @click="handleNumber('3')">3</button>
-            <button class="operator" @click="handleOp('-')">-</button>
-            
-            <button @click="handleNumber('0')">0</button>
-            <button class="reset" @click="reset">C</button>
-            <button class="equals" @click="calculate">=</button>
-            <button class="operator" @click="handleOp('+')">+</button>
+    <div class="calculator-container">
+        <div class="glow"></div>
+        <div class="calculator">
+            <div class="display">{{ displayValue }}</div>
+            <div class="buttons">
+                <button @click="handleNumber('7')">7</button>
+                <button @click="handleNumber('8')">8</button>
+                <button @click="handleNumber('9')">9</button>
+                <button class="operator" @click="handleOp('/')">÷</button>
+                
+                <button @click="handleNumber('4')">4</button>
+                <button @click="handleNumber('5')">5</button>
+                <button @click="handleNumber('6')">6</button>
+                <button class="operator" @click="handleOp('*')">×</button>
+                
+                <button @click="handleNumber('1')">1</button>
+                <button @click="handleNumber('2')">2</button>
+                <button @click="handleNumber('3')">3</button>
+                <button class="operator" @click="handleOp('-')">−</button>
+                
+                <button @click="handleNumber('0')">0</button>
+                <button class="reset" @click="reset">C</button>
+                <button class="equals" @click="calculate">=</button>
+                <button class="operator" @click="handleOp('+')">+</button>
+            </div>
         </div>
     </div>
 </div>
@@ -75,6 +216,7 @@ createApp({
         const calculate = () => {
             const secondOperand = parseFloat(displayValue.value);
             let result = 0;
+            if (operator.value === null) return;
 
             switch (operator.value) {
                 case '+': result = firstOperand.value + secondOperand; break;
@@ -88,7 +230,6 @@ createApp({
                     result = firstOperand.value / secondOperand; 
                     break;
             }
-            
             displayValue.value = String(result);
             firstOperand.value = null;
             operator.value = null;
@@ -100,13 +241,7 @@ createApp({
             operator.value = null;
         };
 
-        return {
-            displayValue,
-            handleNumber,
-            handleOp,
-            calculate,
-            reset
-        };
+        return { displayValue, handleNumber, handleOp, calculate, reset };
     }
 }).mount('#app');
 </script>
