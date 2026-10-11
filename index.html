@@ -163,27 +163,29 @@
         <div class="glow"></div>
         <div class="calculator">
             <div class="display">{{ displayValue }}</div>
-            <div class="buttons">
-                <button @click="handleNumber('7')">7</button>
-                <button @click="handleNumber('8')">8</button>
-                <button @click="handleNumber('9')">9</button>
-                <button class="operator" @click="handleOp('/')">÷</button>
-                
-                <button @click="handleNumber('4')">4</button>
-                <button @click="handleNumber('5')">5</button>
-                <button @click="handleNumber('6')">6</button>
-                <button class="operator" @click="handleOp('*')">×</button>
-                
-                <button @click="handleNumber('1')">1</button>
-                <button @click="handleNumber('2')">2</button>
-                <button @click="handleNumber('3')">3</button>
-                <button class="operator" @click="handleOp('-')">−</button>
-                
-                <button @click="handleNumber('0')">0</button>
-                <button class="reset" @click="reset">C</button>
-                <button class="equals" @click="calculate">=</button>
-                <button class="operator" @click="handleOp('+')">+</button>
-            </div>
+                    <div class="buttons">
+            <button @click="handleNumber('7')">7</button>
+            <button @click="handleNumber('8')">8</button>
+            <button @click="handleNumber('9')">9</button>
+            <button class="operator" @click="handleOp('/')">÷</button>
+            
+            <button @click="handleNumber('4')">4</button>
+            <button @click="handleNumber('5')">5</button>
+            <button @click="handleNumber('6')">6</button>
+            <button class="operator" @click="handleOp('*')">×</button>
+            
+            <button @click="handleNumber('1')">1</button>
+            <button @click="handleNumber('2')">2</button>
+            <button @click="handleNumber('3')">3</button>
+            <button class="operator" @click="handleOp('-')">−</button>
+            
+            <button @click="handleNumber('0')">0</button>
+            <button style="visibility: hidden;"></button>
+            <button class="equals" @click="calculate">=</button>
+            <button class="operator" @click="handleOp('+')">+</button>
+
+            <button class="reset" @click="reset" style="grid-column: span 4;">C</button>
+        </div>
         </div>
     </div>
 </div>
