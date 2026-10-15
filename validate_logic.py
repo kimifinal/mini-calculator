@@ -9,9 +9,13 @@ def calculate(first, second, op):
         if op == '/':
             if second == 0: return "Error"
             return first / second
+        if op == '%':
+            if second == 0: return "Error"
+            return first % second
         return None
     except Exception:
         return "Error"
+
 
 class TestCalculator(unittest.TestCase):
     def test_addition(self):
@@ -28,6 +32,12 @@ class TestCalculator(unittest.TestCase):
 
     def test_division_by_zero(self):
         self.assertEqual(calculate(10, 0, '/'), "Error")
+
+    def test_modulo(self):
+        self.assertEqual(calculate(5, 2, '%'), 1)
+
+    def test_modulo_by_zero(self):
+        self.assertEqual(calculate(5, 0, '%'), "Error")
 
 if __name__ == '__main__':
     unittest.main()

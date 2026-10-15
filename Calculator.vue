@@ -63,6 +63,13 @@ const calculate = () => {
       }
       result = firstOperand.value / secondOperand; 
       break;
+    case '%':
+      if (secondOperand === 0) {
+        displayValue.value = "Error";
+        return;
+      }
+      result = firstOperand.value % secondOperand;
+      break;
   }
   
   displayValue.value = String(result);
