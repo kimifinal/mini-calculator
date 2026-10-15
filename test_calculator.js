@@ -4,10 +4,12 @@ const assert = require('assert');
 
 function calculate(first, second, op) {
     if (op === '/' && second === 0) return "Error";
+    if (op === '%' && second === 0) return "Error";
     if (op === '+') return first + second;
     if (op === '-') return first - second;
     if (op === '*') return first * second;
     if (op === '/') return first / second;
+    if (op === '%') return first % second;
     return null;
 }
 
@@ -25,6 +27,14 @@ try {
     // Test 3: Division (By Zero) - 這是原本失敗的地方
     console.log("測試 3: 除以零 (10 / 0)...");
     assert.strictEqual(calculate(10, 0, '/'), "Error");
+
+    // Test 4: Modulo (Normal)
+    console.log("測試 4: 取餘 (5 % 2)...");
+    assert.strictEqual(calculate(5, 2, '%'), 1);
+
+    // Test 5: Modulo (By Zero)
+    console.log("測試 5: 對 0 取餘 (5 % 0)...");
+    assert.strictEqual(calculate(5, 0, '%'), "Error");
 
     console.log("✅ 所有測試通過！");
 } catch (err) {
