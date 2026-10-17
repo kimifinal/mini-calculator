@@ -72,3 +72,41 @@ test('computes percentage: 50 % = 0.5', async ({ page }) => {
   await press(page, '%');
   await expect(display(page)).toHaveText('0.5');
 });
+
+test('expression mode: (1+2)*(3+4) = 21', async ({ page }) => {
+  // "(" enters expression mode; all subsequent input builds one expression.
+  await press(page, '(');
+  await press(page, '1');
+  await press(page, '+');
+  await press(page, '2');
+  await press(page, ')');
+  await press(page, '*');
+  await press(page, '(');
+  await press(page, '3');
+  await press(page, '+');
+  await press(page, '4');
+  await press(page, ')');
+  await expect(display(page)).toHaveText('(1+2)*(3+4)');
+  await press(page, '=');
+  await expect(display(page)).toHaveText('21');
+});
+
+test('expression mode: (2+3*4) = 14 (precedence)', async ({ page }) => {
+  await press(page, '(');
+  await press(page, '2');
+  await press(page, '+');
+  await press(page, '3');
+  await press(page, '*');
+  await press(page, '4');
+  await press(page, ')');
+  await press(page, '=');
+  await expect(display(page)).toHaveText('14');
+});
+
+test('AC leaves expression mode', async ({ page }) => {
+  await press(page, '(');
+  await press(page, '9');
+  await expect(display(page)).toHaveText('(9');
+  await press(page, 'AC');
+  await expect(display(page)).toHaveText('0');
+});
