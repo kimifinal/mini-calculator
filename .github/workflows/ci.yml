@@ -11,6 +11,8 @@ jobs:
     name: Lint + Unit + E2E
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,6 +46,12 @@ jobs:
     name: Build + Deploy preview
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    env:
+      GITHUB_PAGES: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,7 +68,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Setup Pages
+      - name: Setup Pages (only on master)
         if: github.ref == 'refs/heads/master'
         uses: actions/configure-pages@v5
 
