@@ -28,6 +28,7 @@ function displayText(wrapper: ReturnType<typeof mount>): string {
 
 // Type a sequence of button labels into the calculator, e.g. "1+2)".
 // Each character is sent to the matching button via its data-label.
+// '(' and ')' both map to the single smart "( )" button.
 async function typeExpr(
   wrapper: ReturnType<typeof mount>,
   expr: string,
@@ -35,7 +36,8 @@ async function typeExpr(
   for (const ch of expr) {
     // skip spaces the test author used for readability
     if (ch === ' ') continue;
-    await pressButton(wrapper, ch);
+    const label = ch === '(' || ch === ')' ? '( )' : ch;
+    await pressButton(wrapper, label);
   }
 }
 
@@ -134,9 +136,20 @@ describe('Calculator component', () => {
       expect(displayText(wrapper)).toBe('14');
     });
 
-    it('returns "Error" and shows it for a malformed expression', async () => {
+    it('smart paren refuses to open a group after a bare digit', async () => {
+      // "()" after a digit cannot start a fresh group (that would be the
+      // malformed "2(3"), so it is a no-op and the display is left as "2".
       const wrapper = mount(Calculator);
-      await typeExpr(wrapper, '2(3');
+      await pressButton(wrapper, '2');
+      await pressButton(wrapper, '( )');
+      expect(displayText(wrapper)).toBe('2');
+    });
+
+    it('returns "Error" for an unbalanced open paren', async () => {
+      // "(" then "3" never closed; the parser rejects the dangling '('.
+      const wrapper = mount(Calculator);
+      await pressButton(wrapper, '( )');
+      await pressButton(wrapper, '3');
       await pressButton(wrapper, '=');
       expect(displayText(wrapper)).toBe('Error');
     });
@@ -159,6 +172,33 @@ describe('Calculator component', () => {
       await typeExpr(wrapper, '(999+1)');
       expect(displayText(wrapper)).toBe('(999+1)');
       await pressButton(wrapper, 'AC');
+      expect(displayText(wrapper)).toBe('0');
+    });
+  });
+
+  describe('backspace button', () => {
+    it('deletes one character in legacy mode: 123 -> 12', async () => {
+      const wrapper = mount(Calculator);
+      await pressButton(wrapper, '1');
+      await pressButton(wrapper, '2');
+      await pressButton(wrapper, '3');
+      expect(displayText(wrapper)).toBe('123');
+      await pressButton(wrapper, 'backspace');
+      expect(displayText(wrapper)).toBe('12');
+    });
+
+    it('deletes one character in expression mode: (1+2 -> (1+', async () => {
+      const wrapper = mount(Calculator);
+      await typeExpr(wrapper, '(1+2');
+      expect(displayText(wrapper)).toBe('(1+2');
+      await pressButton(wrapper, 'backspace');
+      expect(displayText(wrapper)).toBe('(1+');
+    });
+
+    it('does not go below a single 0 in legacy mode', async () => {
+      const wrapper = mount(Calculator);
+      expect(displayText(wrapper)).toBe('0');
+      await pressButton(wrapper, 'backspace');
       expect(displayText(wrapper)).toBe('0');
     });
   });

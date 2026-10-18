@@ -12,7 +12,7 @@ const emit = defineEmits<{
 // Two modes:
 //  - 'legacy': the two-step state machine (a -> op -> b -> =), unchanged.
 //  - 'expression': free-form entry of a full expression string, evaluated
-//    by the shunting-yard parser when '=' is pressed. Entering '(' flips to
+//    by the shunting-yard parser when '=' is pressed. Pressing "( )" flips to
 //    expression mode; AC returns to legacy mode.
 type Mode = 'legacy' | 'expression';
 
@@ -64,9 +64,6 @@ function handleDecimal() {
 function handleBackspace() {
   if (mode.value === 'expression') {
     displayValue.value = displayValue.value.slice(0, -1);
-    if (displayValue.value === '') {
-      displayValue.value = '';
-    }
     return;
   }
   if (hasError.value) {
@@ -109,24 +106,35 @@ function handleOp(op: Operator) {
   justEvaluated.value = false;
 }
 
-function handleParen() {
-  // Opening paren. When building an expression, just append another '(' so
-  // nested expressions like (1+2)*(3+4) work. When entering from legacy mode,
-  // start a fresh expression string instead of appending to a stale "0".
-  if (mode.value === 'expression' && !hasError.value) {
-    displayValue.value += '(';
+/**
+ * Smart parenthesis button ("( )"). Appends ')' when there is an unmatched
+ * '(' to close, otherwise '"(''. A digit at the end cannot open a new group
+ * (that would be malformed `5(...)`), so in that case we leave the display
+ * untouched. First use flips the calculator into expression mode, so the
+ * shunting-yard parser takes over precedence at '='.
+ */
+function handleSmartParen() {
+  if (hasError.value) return;
+  if (mode.value === 'legacy') mode.value = 'expression';
+
+  const s = displayValue.value;
+  if (s === '0' || s === '') {
+    displayValue.value = '(';
     return;
   }
-  displayValue.value = '(';
-  hasError.value = false;
-  mode.value = 'expression';
-}
 
-function handleParenClose() {
-  // A closing paren only applies while building an expression.
-  if (mode.value === 'expression' && !hasError.value) {
-    displayValue.value += ')';
+  // A digit or a closing paren at the end can only be *closed*.
+  if (/[0-9.)]$/.test(s)) {
+    const opens = s.split('(').length - 1;
+    const closes = s.split(')').length - 1;
+    if (opens > closes) {
+      displayValue.value = s + ')';
+    }
+    return; // a bare number end can't open a new group
   }
+
+  // Ends in an operator or an opening paren: open another group.
+  displayValue.value = s + '(';
 }
 
 function calculateExpression() {
@@ -195,8 +203,7 @@ function onKey(ev: KeyboardEvent) {
     ev.preventDefault();
     handleOp('/');
   } else if (key === '%') handlePercentage();
-  else if (key === '(') handleParen();
-  else if (key === ')') handleParenClose();
+  else if (key === '(' || key === ')') handleSmartParen();
   else if (key === 'Enter' || key === '=') {
     ev.preventDefault();
     calculateExpression();
@@ -210,100 +217,75 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
 <template>
   <div class="calculator-container">
-    <div class="glow"></div>
     <div class="calculator" data-testid="calculator">
       <div class="display" data-testid="display">{{ displayValue }}</div>
       <div class="buttons">
-        <!-- Row 1: utilities + parentheses -->
+        <!-- Row 1 -->
         <button
-          class="ac"
+          class="btn ac"
           data-test="ac"
           data-label="AC"
           @click="reset"
         >AC</button>
         <button
-          class="operator paren"
-          data-test="op"
-          data-label="("
-          @click="handleParen()"
-        >(</button>
+          class="btn op"
+          data-test="paren"
+          data-paren="1"
+          data-label="( )"
+          @click="handleSmartParen()"
+        >( )</button>
         <button
-          class="operator paren"
+          class="btn op"
           data-test="op"
-          data-label=")"
-          @click="handleParenClose()"
-        >)</button>
+          data-label="%"
+          @click="handlePercentage()"
+        >%</button>
         <button
-          class="operator"
+          class="btn op"
           data-test="op"
           data-label="/"
           @click="handleOp('/')"
         >÷</button>
 
         <!-- Row 2 -->
-        <button class="num" data-test="num" data-label="7" @click="handleNumber('7')">7</button>
-        <button class="num" data-test="num" data-label="8" @click="handleNumber('8')">8</button>
-        <button class="num" data-test="num" data-label="9" @click="handleNumber('9')">9</button>
-        <button
-          class="operator"
-          data-test="op"
-          data-label="*"
-          @click="handleOp('*')"
-        >×</button>
+        <button class="btn num" data-test="num" data-label="7" @click="handleNumber('7')">7</button>
+        <button class="btn num" data-test="num" data-label="8" @click="handleNumber('8')">8</button>
+        <button class="btn num" data-test="num" data-label="9" @click="handleNumber('9')">9</button>
+        <button class="btn op" data-test="op" data-label="*" @click="handleOp('*')">×</button>
 
         <!-- Row 3 -->
-        <button class="num" data-test="num" data-label="4" @click="handleNumber('4')">4</button>
-        <button class="num" data-test="num" data-label="5" @click="handleNumber('5')">5</button>
-        <button class="num" data-test="num" data-label="6" @click="handleNumber('6')">6</button>
-        <button
-          class="operator"
-          data-test="op"
-          data-label="-"
-          @click="handleOp('-')"
-        >−</button>
+        <button class="btn num" data-test="num" data-label="4" @click="handleNumber('4')">4</button>
+        <button class="btn num" data-test="num" data-label="5" @click="handleNumber('5')">5</button>
+        <button class="btn num" data-test="num" data-label="6" @click="handleNumber('6')">6</button>
+        <button class="btn op" data-test="op" data-label="-" @click="handleOp('-')">−</button>
 
         <!-- Row 4 -->
-        <button class="num" data-test="num" data-label="1" @click="handleNumber('1')">1</button>
-        <button class="num" data-test="num" data-label="2" @click="handleNumber('2')">2</button>
-        <button class="num" data-test="num" data-label="3" @click="handleNumber('3')">3</button>
-        <button
-          class="operator"
-          data-test="op"
-          data-label="+"
-          @click="handleOp('+')"
-        >+</button>
+        <button class="btn num" data-test="num" data-label="1" @click="handleNumber('1')">1</button>
+        <button class="btn num" data-test="num" data-label="2" @click="handleNumber('2')">2</button>
+        <button class="btn num" data-test="num" data-label="3" @click="handleNumber('3')">3</button>
+        <button class="btn op" data-test="op" data-label="+" @click="handleOp('+')">+</button>
 
         <!-- Row 5 -->
-        <button class="num wide" data-test="num" data-label="0" @click="handleNumber('0')">0</button>
-        <button class="num" data-test="decimal" data-label="." @click="handleDecimal()">.</button>
+        <button class="btn num" data-test="num" data-label="0" @click="handleNumber('0')">0</button>
+        <button class="btn num" data-test="decimal" data-label="." @click="handleDecimal()">.</button>
         <button
-          class="equals"
+          class="btn"
+          data-test="backspace"
+          data-label="backspace"
+          @click="handleBackspace()"
+        >⌫</button>
+        <button
+          class="btn eq"
           data-test="equals"
           data-label="="
           @click="calculateExpression()"
         >=</button>
-        <button
-          class="operator"
-          data-test="op"
-          data-label="%"
-          @click="handlePercentage()"
-        >%</button>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-:root {
-  --bg-indigo: oklch(45% 0.15 260);
-  --bg-purple: oklch(50% 0.18 300);
-  --bg-teal: oklch(65% 0.12 180);
-  --glass-bg: oklch(98% 0.01 260 / 0.12);
-  --glass-border: oklch(100% 0 0 / 0.15);
-  --text-main: oklch(98% 0.01 260);
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-}
-
 .calculator-container {
   position: relative;
   z-index: 1;
@@ -312,109 +294,74 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 .calculator {
   position: relative;
   z-index: 10;
-  width: 320px;
-  padding: 25px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(30px) saturate(160%);
-  -webkit-backdrop-filter: blur(30px) saturate(160%);
-  border: 1px solid var(--glass-border);
-  border-radius: 40px;
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.4);
+  width: 340px;
+  padding: 12px;
+  background: transparent;
 }
 
-.glow {
-  position: absolute;
-  width: 250px;
-  height: 250px;
-  background: var(--bg-teal);
-  filter: blur(100px);
-  border-radius: 50%;
-  z-index: 0;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 0.3;
-  pointer-events: none;
-}
-
+/* Display */
 .display {
-  background: rgba(0, 0, 0, 0.25);
-  color: var(--text-main);
-  padding: 25px;
+  background: transparent;
+  color: #fff;
+  padding: 0 14px 18px 14px;
   text-align: right;
-  font-size: 2.8rem;
+  font-size: 3.4rem;
   font-weight: 300;
-  border-radius: 24px;
-  margin-bottom: 25px;
+  letter-spacing: 0.02em;
   min-height: 90px;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
-  box-shadow: inset 0 2px 15px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
+/* Layout: 4 columns x 5 rows, all round buttons the same size. */
 .buttons {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
 
 button {
   aspect-ratio: 1;
-  font-size: 1.3rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--text-main);
+  border-radius: 50%;
+  font-size: 1.6rem;
+  border: none;
+  background: #333333;
+  color: #fff;
   cursor: pointer;
-  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
   display: flex;
   justify-content: center;
   align-items: center;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: filter 0.12s ease, transform 0.06s ease;
 }
 
 button:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: translateY(-3px);
+  filter: brightness(1.25);
 }
 
 button:active {
-  transform: translateY(0) scale(0.95);
+  transform: scale(0.94);
 }
 
-button.operator {
-  background: oklch(85% 0.12 150 / 0.2);
-  color: oklch(85% 0.15 150);
+/* operators + AC: sage accent with dark text */
+button.op,
+button.ac {
+  background: #b5c19e;
+  color: #16161a;
   font-weight: 500;
 }
 
-button.operator:hover {
-  background: oklch(85% 0.15 150 / 0.4);
+/* equals: cream */
+button.eq {
+  background: #f4efdc;
+  color: #16161a;
+  font-weight: 600;
 }
 
-button.operator.paren {
-  background: oklch(80% 0.08 260 / 0.18);
-  color: oklch(85% 0.1 260);
-}
-
-button.operator.paren:hover {
-  background: oklch(80% 0.12 260 / 0.35);
-}
-
-button.num.wide {
-  grid-column: span 1;
-}
-
-button.equals {
-  background: var(--text-main);
-  color: #000;
-  font-weight: 700;
-}
-
-button.ac {
-  background: oklch(60% 0.2 25 / 0.2);
-  color: oklch(65% 0.2 25);
+button[data-label="( )"] {
+  font-size: 1.35rem;
 }
 </style>
