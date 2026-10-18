@@ -26,6 +26,19 @@ function displayText(wrapper: ReturnType<typeof mount>): string {
   return el.text().trim();
 }
 
+// Type a sequence of button labels into the calculator, e.g. "1+2)".
+// Each character is sent to the matching button via its data-label.
+async function typeExpr(
+  wrapper: ReturnType<typeof mount>,
+  expr: string,
+) {
+  for (const ch of expr) {
+    // skip spaces the test author used for readability
+    if (ch === ' ') continue;
+    await pressButton(wrapper, ch);
+  }
+}
+
 describe('Calculator component', () => {
   it('mounts and shows 0', () => {
     const wrapper = mount(Calculator);
@@ -98,5 +111,55 @@ describe('Calculator component', () => {
     await pressButton(wrapper, '0');
     await pressButton(wrapper, '%');
     expect(displayText(wrapper)).toBe('0.5');
+  });
+
+  describe('expression mode (parentheses)', () => {
+    it('opens on "(" and keeps the running expression visible', async () => {
+      const wrapper = mount(Calculator);
+      await typeExpr(wrapper, '(1+2)*(3+4)');
+      expect(displayText(wrapper)).toBe('(1+2)*(3+4)');
+    });
+
+    it('evaluates a multi-term expression: (1+2)*(3+4) = 21', async () => {
+      const wrapper = mount(Calculator);
+      await typeExpr(wrapper, '(1+2)*(3+4)');
+      await pressButton(wrapper, '=');
+      expect(displayText(wrapper)).toBe('21');
+    });
+
+    it('respects precedence inside the expression: (2+3*4) = 14', async () => {
+      const wrapper = mount(Calculator);
+      await typeExpr(wrapper, '(2+3*4)');
+      await pressButton(wrapper, '=');
+      expect(displayText(wrapper)).toBe('14');
+    });
+
+    it('returns "Error" and shows it for a malformed expression', async () => {
+      const wrapper = mount(Calculator);
+      await typeExpr(wrapper, '2(3');
+      await pressButton(wrapper, '=');
+      expect(displayText(wrapper)).toBe('Error');
+    });
+
+    it('falls back to legacy mode after a successful expression calc', async () => {
+      const wrapper = mount(Calculator);
+      await typeExpr(wrapper, '(1+2)');
+      await pressButton(wrapper, '=');
+      expect(displayText(wrapper)).toBe('3');
+      // Now in legacy mode: continue as a two-step calc starting fresh.
+      await pressButton(wrapper, '5');
+      await pressButton(wrapper, '+');
+      await pressButton(wrapper, '3');
+      await pressButton(wrapper, '=');
+      expect(displayText(wrapper)).toBe('8');
+    });
+
+    it('AC returns to legacy mode and shows 0', async () => {
+      const wrapper = mount(Calculator);
+      await typeExpr(wrapper, '(999+1)');
+      expect(displayText(wrapper)).toBe('(999+1)');
+      await pressButton(wrapper, 'AC');
+      expect(displayText(wrapper)).toBe('0');
+    });
   });
 });

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { calculate, percentage, type Operator } from '../lib/calculator';
+import { parseExpression } from '../lib/expression';
 
 // The component emits an event whenever a result is computed, so a parent
 // app / test harness can observe calculation outcomes.
@@ -8,28 +9,48 @@ const emit = defineEmits<{
   (e: 'result-calculated', value: string): void;
 }>();
 
+// Two modes:
+//  - 'legacy': the two-step state machine (a -> op -> b -> =), unchanged.
+//  - 'expression': free-form entry of a full expression string, evaluated
+//    by the shunting-yard parser when '=' is pressed. Entering '(' flips to
+//    expression mode; AC returns to legacy mode.
+type Mode = 'legacy' | 'expression';
+
 // --- reactive state (mirrors the legacy index.html behaviour) ---
 const displayValue = ref('0');
 const firstOperand = ref<number | null>(null);
 const operator = ref<Operator | null>(null);
 const waitingForSecondOperand = ref(false);
 const hasError = ref(false);
+const mode = ref<Mode>('legacy');
+// Set after '=' so the next digit starts a fresh calc instead of appending
+// to the result string (the two-step legacy chain keeps going via the op).
+const justEvaluated = ref(false);
 
 function handleNumber(num: string) {
+  if (mode.value === 'expression') {
+    displayValue.value += num;
+    return;
+  }
   if (hasError.value) {
     displayValue.value = num;
     hasError.value = false;
     return;
   }
-  if (displayValue.value === '0' || waitingForSecondOperand.value) {
+  if (displayValue.value === '0' || waitingForSecondOperand.value || justEvaluated.value) {
     displayValue.value = num;
     waitingForSecondOperand.value = false;
+    justEvaluated.value = false;
   } else {
     displayValue.value += num;
   }
 }
 
 function handleDecimal() {
+  if (mode.value === 'expression') {
+    displayValue.value += '.';
+    return;
+  }
   if (hasError.value) {
     displayValue.value = '0.';
     hasError.value = false;
@@ -41,6 +62,13 @@ function handleDecimal() {
 }
 
 function handleBackspace() {
+  if (mode.value === 'expression') {
+    displayValue.value = displayValue.value.slice(0, -1);
+    if (displayValue.value === '') {
+      displayValue.value = '';
+    }
+    return;
+  }
   if (hasError.value) {
     displayValue.value = '0';
     hasError.value = false;
@@ -66,14 +94,62 @@ function handlePercentage() {
 }
 
 function handleOp(op: Operator) {
+  // In expression mode operators just append to the expression string,
+  // letting the parser resolve precedence at '='.
+  if (mode.value === 'expression') {
+    displayValue.value += op;
+    justEvaluated.value = false;
+    return;
+  }
   if (hasError.value) return;
+  // Chaining after '=': the displayed result becomes the firstOperand.
   firstOperand.value = parseFloat(displayValue.value);
   operator.value = op;
   waitingForSecondOperand.value = true;
+  justEvaluated.value = false;
+}
+
+function handleParen() {
+  // Opening paren. When building an expression, just append another '(' so
+  // nested expressions like (1+2)*(3+4) work. When entering from legacy mode,
+  // start a fresh expression string instead of appending to a stale "0".
+  if (mode.value === 'expression' && !hasError.value) {
+    displayValue.value += '(';
+    return;
+  }
+  displayValue.value = '(';
+  hasError.value = false;
+  mode.value = 'expression';
+}
+
+function handleParenClose() {
+  // A closing paren only applies while building an expression.
+  if (mode.value === 'expression' && !hasError.value) {
+    displayValue.value += ')';
+  }
 }
 
 function calculateExpression() {
   if (hasError.value) return;
+
+  if (mode.value === 'expression') {
+    const result = parseExpression(displayValue.value);
+    if (result === 'Error') {
+      displayValue.value = 'Error';
+      hasError.value = true;
+      emit('result-calculated', displayValue.value);
+      return;
+    }
+    displayValue.value = String(Math.round((result + Number.EPSILON) * 1e12) / 1e12);
+    mode.value = 'legacy';
+    firstOperand.value = null;
+    operator.value = null;
+    waitingForSecondOperand.value = false;
+    justEvaluated.value = true;
+    emit('result-calculated', displayValue.value);
+    return;
+  }
+
   if (operator.value === null || firstOperand.value === null) return;
 
   const secondOperand = parseFloat(displayValue.value);
@@ -93,6 +169,7 @@ function calculateExpression() {
   firstOperand.value = null;
   operator.value = null;
   waitingForSecondOperand.value = false;
+  justEvaluated.value = true;
   emit('result-calculated', displayValue.value);
 }
 
@@ -102,6 +179,8 @@ function reset() {
   operator.value = null;
   waitingForSecondOperand.value = false;
   hasError.value = false;
+  justEvaluated.value = false;
+  mode.value = 'legacy';
 }
 
 // --- physical keyboard support (best-effort, not part of the e2e suite) ---
@@ -116,6 +195,8 @@ function onKey(ev: KeyboardEvent) {
     ev.preventDefault();
     handleOp('/');
   } else if (key === '%') handlePercentage();
+  else if (key === '(') handleParen();
+  else if (key === ')') handleParenClose();
   else if (key === 'Enter' || key === '=') {
     ev.preventDefault();
     calculateExpression();
@@ -133,7 +214,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
     <div class="calculator" data-testid="calculator">
       <div class="display" data-testid="display">{{ displayValue }}</div>
       <div class="buttons">
-        <!-- Row 1: utilities -->
+        <!-- Row 1: utilities + parentheses -->
         <button
           class="ac"
           data-test="ac"
@@ -141,17 +222,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
           @click="reset"
         >AC</button>
         <button
-          class="operator"
-          data-test="backspace"
-          data-label="backspace"
-          @click="handleBackspace()"
-        >⌫</button>
-        <button
-          class="operator"
+          class="operator paren"
           data-test="op"
-          data-label="%"
-          @click="handlePercentage()"
-        >%</button>
+          data-label="("
+          @click="handleParen()"
+        >(</button>
+        <button
+          class="operator paren"
+          data-test="op"
+          data-label=")"
+          @click="handleParenClose()"
+        >)</button>
         <button
           class="operator"
           data-test="op"
@@ -201,6 +282,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
           data-label="="
           @click="calculateExpression()"
         >=</button>
+        <button
+          class="operator"
+          data-test="op"
+          data-label="%"
+          @click="handlePercentage()"
+        >%</button>
       </div>
     </div>
   </div>
@@ -305,6 +392,15 @@ button.operator {
 
 button.operator:hover {
   background: oklch(85% 0.15 150 / 0.4);
+}
+
+button.operator.paren {
+  background: oklch(80% 0.08 260 / 0.18);
+  color: oklch(85% 0.1 260);
+}
+
+button.operator.paren:hover {
+  background: oklch(80% 0.12 260 / 0.35);
 }
 
 button.num.wide {
