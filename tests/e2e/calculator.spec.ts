@@ -74,39 +74,61 @@ test('computes percentage: 50 % = 0.5', async ({ page }) => {
 });
 
 test('expression mode: (1+2)*(3+4) = 21', async ({ page }) => {
-  // "(" enters expression mode; all subsequent input builds one expression.
-  await press(page, '(');
+  // The single "()" button auto-inserts '(' or ')' based on context, so each
+  // paren character maps to the same button.
+  const paren = () => page.locator('button[data-paren="1"]').first().click();
+  await paren();
   await press(page, '1');
   await press(page, '+');
   await press(page, '2');
-  await press(page, ')');
+  await paren();
   await press(page, '*');
-  await press(page, '(');
+  await paren();
   await press(page, '3');
   await press(page, '+');
   await press(page, '4');
-  await press(page, ')');
+  await paren();
   await expect(display(page)).toHaveText('(1+2)*(3+4)');
   await press(page, '=');
   await expect(display(page)).toHaveText('21');
 });
 
 test('expression mode: (2+3*4) = 14 (precedence)', async ({ page }) => {
-  await press(page, '(');
+  const paren = () => page.locator('button[data-paren="1"]').first().click();
+  await paren();
   await press(page, '2');
   await press(page, '+');
   await press(page, '3');
   await press(page, '*');
   await press(page, '4');
-  await press(page, ')');
+  await paren();
   await press(page, '=');
   await expect(display(page)).toHaveText('14');
 });
 
 test('AC leaves expression mode', async ({ page }) => {
-  await press(page, '(');
+  await page.locator('button[data-paren="1"]').first().click();
   await press(page, '9');
   await expect(display(page)).toHaveText('(9');
   await press(page, 'AC');
   await expect(display(page)).toHaveText('0');
+});
+
+test('backspace deletes one character: 123 -> 12', async ({ page }) => {
+  await press(page, '1');
+  await press(page, '2');
+  await press(page, '3');
+  await expect(display(page)).toHaveText('123');
+  await press(page, 'backspace');
+  await expect(display(page)).toHaveText('12');
+});
+
+test('backspace works in expression mode: (1+2 -> (1+', async ({ page }) => {
+  await page.locator('button[data-paren="1"]').first().click();
+  await press(page, '1');
+  await press(page, '+');
+  await press(page, '2');
+  await expect(display(page)).toHaveText('(1+2');
+  await press(page, 'backspace');
+  await expect(display(page)).toHaveText('(1+');
 });
