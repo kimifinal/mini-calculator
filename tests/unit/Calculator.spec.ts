@@ -348,7 +348,38 @@ describe('Calculator component', () => {
         const entries = wrapper.findAll('[data-test="history-entry"]');
         expect(entries.length).toBeLessThanOrEqual(50);
         expect(entries).toHaveLength(50);
+        // N3 (reviewer nice-to-have): pin that "oldest dropped" is real, not just
+        // that the top is newest — the 1st record ("1 + 0 = 1") must be gone and
+        // the 10th-most-recent ("2 + 0 = 2") must be the last entry.
         expect(entries[0].text().trim()).toBe('51 + 0 = 51');
+        expect(entries[49].text().trim()).toBe('2 + 0 = 2');
+      });
+
+      it('records an expression-mode calculation in raw form: 2+3*4 = 14', async () => {
+        // N1 (reviewer nice-to-have): assert expression-mode recording produces the
+        // raw-expression line, not just that the display evaluates correctly.
+        const wrapper = mount(Calculator);
+        await typeExpr(wrapper, '(2+3*4)');
+        await pressButton(wrapper, '=');
+        expect(displayText(wrapper)).toBe('14');
+        const entries = wrapper.findAll('[data-test="history-entry"]');
+        expect(entries).toHaveLength(1);
+        expect(entries[0].text().trim()).toBe('(2+3*4) = 14');
+      });
+
+      it('does NOT record an expression-mode Error result', async () => {
+        // N2 (reviewer nice-to-have): the "never on Error" rule must hold for the
+        // expression path too, not just the legacy path. An unbalanced paren yields
+        // a parser "Error", which must not be written to the history.
+        const wrapper = mount(Calculator);
+        await typeExpr(wrapper, '(3');
+        await pressButton(wrapper, '=');
+        expect(displayText(wrapper)).toBe('Error');
+        expect(wrapper.findAll('[data-test="history-entry"]')).toHaveLength(0);
+        const stored = JSON.parse(
+          window.localStorage.getItem('calc-history-v1') || '[]',
+        ) as string[];
+        expect(stored.some((s) => s.includes('Error'))).toBe(false);
       });
     });
     });
