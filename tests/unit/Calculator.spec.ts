@@ -202,4 +202,49 @@ describe('Calculator component', () => {
       expect(displayText(wrapper)).toBe('0');
     });
   });
+
+  describe('negate (±) button', () => {
+    it('toggles the sign in legacy mode: 5 -> -5 -> 5', async () => {
+      const wrapper = mount(Calculator);
+      await pressButton(wrapper, '5');
+      expect(displayText(wrapper)).toBe('5');
+      await pressButton(wrapper, '±');
+      expect(displayText(wrapper)).toBe('-5');
+      await pressButton(wrapper, '±');
+      expect(displayText(wrapper)).toBe('5');
+    });
+
+    it('is a no-op when the display is 0', async () => {
+      const wrapper = mount(Calculator);
+      expect(displayText(wrapper)).toBe('0');
+      await pressButton(wrapper, '±');
+      expect(displayText(wrapper)).toBe('0');
+      await pressButton(wrapper, '±');
+      expect(displayText(wrapper)).toBe('0');
+    });
+
+    it('is a no-op when the display is Error', async () => {
+      const wrapper = mount(Calculator);
+      // 10 / 0 -> "Error"
+      await pressButton(wrapper, '1');
+      await pressButton(wrapper, '0');
+      await pressButton(wrapper, '/');
+      await pressButton(wrapper, '0');
+      await pressButton(wrapper, '=');
+      expect(displayText(wrapper)).toBe('Error');
+      // ± must not corrupt the error state or turn it into "0"
+      await pressButton(wrapper, '±');
+      expect(displayText(wrapper)).toBe('Error');
+    });
+
+    it('is a no-op on a partial expression (expression mode)', async () => {
+      const wrapper = mount(Calculator);
+      // Enter expression mode and build a partial, ambiguous expression.
+      await typeExpr(wrapper, '(5+');
+      expect(displayText(wrapper)).toBe('(5+');
+      // ± on a partial expression is unambiguous-free, so it is a no-op.
+      await pressButton(wrapper, '±');
+      expect(displayText(wrapper)).toBe('(5+');
+    });
+  });
 });
