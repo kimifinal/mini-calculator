@@ -132,3 +132,13 @@ test('backspace works in expression mode: (1+2 -> (1+', async ({ page }) => {
   await press(page, 'backspace');
   await expect(display(page)).toHaveText('(1+');
 });
+
+test('negate button toggles sign: 5 -> ± -> -5 -> ± -> 5', async ({ page }) => {
+  await press(page, '5');
+  await expect(display(page)).toHaveText('5');
+  await press(page, '±');
+  await expect(display(page)).toHaveText('-5');
+  // A second toggle returns the display to the original value.
+  await press(page, '±');
+  await expect(display(page)).toHaveText('5');
+});

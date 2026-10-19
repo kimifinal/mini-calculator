@@ -90,6 +90,30 @@ function handlePercentage() {
   displayValue.value = percentage(parseFloat(displayValue.value)).toString();
 }
 
+/**
+ * "±" sign toggle. Flips the sign of the currently-displayed value, matching
+ * the iOS calculator. A no-op when the display is '0' (so we never render
+ * '-0') or 'Error' (where parseFloat would otherwise yield NaN).
+ *
+ * In expression mode we only toggle when the whole display is a bare number
+ * (optionally already signed); a partial expression like "5+3-" is ambiguous
+ * so we leave it untouched.
+ */
+function handleNegate() {
+  if (hasError.value) return; // 'Error' stays 'Error'
+  if (displayValue.value === '0') return; // 0 -> 0 is a no-op
+
+  if (mode.value === 'expression') {
+    const s = displayValue.value;
+    if (/^[-+]?\d+(\.\d+)?$/.test(s)) {
+      displayValue.value = s.startsWith('-') ? s.slice(1) : `-${s}`;
+    }
+    return;
+  }
+
+  displayValue.value = String(-parseFloat(displayValue.value));
+}
+
 function handleOp(op: Operator) {
   // In expression mode operators just append to the expression string,
   // letting the parser resolve precedence at '='.
@@ -227,6 +251,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
           data-label="AC"
           @click="reset"
         >AC</button>
+        <button
+          class="btn op"
+          data-test="negate"
+          data-label="±"
+          @click="handleNegate()"
+        >±</button>
         <button
           class="btn op"
           data-test="paren"
