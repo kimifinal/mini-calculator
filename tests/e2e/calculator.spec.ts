@@ -142,3 +142,27 @@ test('negate button toggles sign: 5 -> ± -> -5 -> ± -> 5', async ({ page }) =>
   await press(page, '±');
   await expect(display(page)).toHaveText('5');
 });
+
+test('history records a calculation and reloading it restores the result', async ({
+  page,
+}) => {
+  // Compute 5 + 3 = 8.
+  await press(page, '5');
+  await press(page, '+');
+  await press(page, '3');
+  await press(page, '=');
+  await expect(display(page)).toHaveText('8');
+
+  // Open the history panel via its toggle button.
+  await page.locator('button[data-test="history-toggle"]').click();
+  const list = page.locator('[data-testid="history-list"]');
+  await expect(list).toBeVisible();
+
+  // The recorded line "5 + 3 = 8" is visible in the panel.
+  const entry = page.locator('[data-test="history-entry"]');
+  await expect(entry.first()).toHaveText('5 + 3 = 8');
+
+  // Click it: its result (8) loads back into the display.
+  await entry.first().click();
+  await expect(display(page)).toHaveText('8');
+});
