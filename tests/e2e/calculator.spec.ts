@@ -166,3 +166,46 @@ test('history records a calculation and reloading it restores the result', async
   await entry.first().click();
   await expect(display(page)).toHaveText('8');
 });
+
+test('chevron button collapses the history panel back to the keyboard', async ({
+  page,
+}) => {
+  await press(page, '6');
+  await press(page, '+');
+  await press(page, '7');
+  await press(page, '=');
+  // Open the panel; it is visible.
+  await page.locator('button[data-test="history-toggle"]').click();
+  const list = page.locator('[data-testid="history-list"]');
+  await expect(list).toBeVisible();
+  // The chevron collapse button hides the panel.
+  await page.locator('button[data-test="history-close"]').click();
+  await expect(list).toBeHidden();
+});
+
+test('tapping a history entry auto-collapses back to the keyboard', async ({
+  page,
+}) => {
+  await press(page, '4');
+  await press(page, '*');
+  await press(page, '9');
+  await press(page, '='); // 36
+  await page.locator('button[data-test="history-toggle"]').click();
+  const list = page.locator('[data-testid="history-list"]');
+  await expect(list).toBeVisible();
+  // Tapping a line loads its result AND collapses the panel (iOS behave).
+  await page.locator('[data-test="history-entry"]').first().click();
+  await expect(display(page)).toHaveText('36');
+  await expect(list).toBeHidden();
+});
+
+test('the current-expression bar is visible in the open panel', async ({
+  page,
+}) => {
+  await press(page, '5');
+  await press(page, '+');
+  await press(page, '3');
+  await press(page, '=');
+  await page.locator('button[data-test="history-toggle"]').click();
+  await expect(page.locator('[data-test="current-expression"]')).toBeVisible();
+});

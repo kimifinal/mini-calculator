@@ -38,11 +38,15 @@ function toggleHistory() {
   historyVisible.value = !historyVisible.value;
 }
 
+function closeHistory() {
+  historyVisible.value = false;
+}
+
 /**
- * Clicking a history entry loads its RESULT into the display and starts a
+ * Tapping a history line loads its RESULT into the display and starts a
  * fresh calc — exactly the effect of a just-pressed '=': the next digit
- * replaces the display instead of appending. We also return to legacy mode so
- * the two-step chain behaves like a normal post-equal state.
+ * replaces the display instead of appending. We return to legacy mode and,
+ * iOS-style, auto-collapse the panel back to the keyboard.
  */
 function loadHistoryEntry(entry: string) {
   const result = entry.split('=')[entry.split('=').length - 1].trim();
@@ -53,6 +57,9 @@ function loadHistoryEntry(entry: string) {
   hasError.value = false;
   justEvaluated.value = true;
   mode.value = 'legacy';
+  // iOS behaviour: after picking a result the panel slides away and the
+  // keyboard returns so the user can immediately continue.
+  closeHistory();
 }
 
 function handleNumber(num: string) {
@@ -277,115 +284,164 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 <template>
   <div class="calculator-container">
     <div class="calculator" data-testid="calculator">
-      <div class="display" data-testid="display">{{ displayValue }}</div>
-      <div class="buttons">
-        <!-- Row 1 -->
-        <button
-          class="btn ac"
-          data-test="ac"
-          data-label="AC"
-          @click="reset"
-        >AC</button>
-        <button
-          class="btn op"
-          data-test="negate"
-          data-label="±"
-          @click="handleNegate()"
-        >±</button>
-        <button
-          class="btn op"
-          data-test="paren"
-          data-paren="1"
-          data-label="( )"
-          @click="handleSmartParen()"
-        >( )</button>
-        <button
-          class="btn op"
-          data-test="op"
-          data-label="%"
-          @click="handlePercentage()"
-        >%</button>
-        <button
-          class="btn op"
-          data-test="op"
-          data-label="/"
-          @click="handleOp('/')"
-        >÷</button>
-
-        <!-- Row 2 -->
-        <button class="btn num" data-test="num" data-label="7" @click="handleNumber('7')">7</button>
-        <button class="btn num" data-test="num" data-label="8" @click="handleNumber('8')">8</button>
-        <button class="btn num" data-test="num" data-label="9" @click="handleNumber('9')">9</button>
-        <button class="btn op" data-test="op" data-label="*" @click="handleOp('*')">×</button>
-
-        <!-- Row 3 -->
-        <button class="btn num" data-test="num" data-label="4" @click="handleNumber('4')">4</button>
-        <button class="btn num" data-test="num" data-label="5" @click="handleNumber('5')">5</button>
-        <button class="btn num" data-test="num" data-label="6" @click="handleNumber('6')">6</button>
-        <button class="btn op" data-test="op" data-label="-" @click="handleOp('-')">−</button>
-
-        <!-- Row 4 -->
-        <button class="btn num" data-test="num" data-label="1" @click="handleNumber('1')">1</button>
-        <button class="btn num" data-test="num" data-label="2" @click="handleNumber('2')">2</button>
-        <button class="btn num" data-test="num" data-label="3" @click="handleNumber('3')">3</button>
-        <button class="btn op" data-test="op" data-label="+" @click="handleOp('+')">+</button>
-
-        <!-- Row 5 -->
-        <button class="btn num" data-test="num" data-label="0" @click="handleNumber('0')">0</button>
-        <button class="btn num" data-test="decimal" data-label="." @click="handleDecimal()">.</button>
-        <button
-          class="btn"
-          data-test="backspace"
-          data-label="backspace"
-          @click="handleBackspace()"
-        >⌫</button>
-        <button
-          class="btn eq"
-          data-test="equals"
-          data-label="="
-          @click="calculateExpression()"
-        >=</button>
-      </div>
-
-      <!-- Calculation history: a collapsible overlay list. The toggle shows/hides
-           the panel; each recorded entry is clickable to reload its result. -->
+      <!-- Clock icon toggle, top-left corner (iOS style). -->
       <button
-        class="btn history-toggle"
+        class="history-toggle"
         data-test="history-toggle"
         data-label="history"
         @click="toggleHistory()"
+        :aria-label="historyVisible ? '關閉歷史' : '打開歷史'"
       >
-        歷史
+        <svg
+          class="history-icon"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
       </button>
 
-      <div
-        class="history-panel"
-        data-test="history-panel"
-        v-show="historyVisible"
-      >
-        <div class="history-head">
-          <span class="history-title">計算歷史</span>
-          <button
-            class="history-clear"
-            data-test="history-clear"
-            data-label="clear-history"
-            @click="clearHistory()"
-          >
-            清除
-          </button>
+      <!-- Display: always fixed at the top, never covered. -->
+      <div class="display" data-testid="display">{{ displayValue }}</div>
+
+      <!--
+        The "stage" holds the keyboard and the history panel as overlapping
+        absolutely-positioned layers of the same size. Opening history slides
+        the keyboard down and fades it out while the panel slides up to take
+        the same space — the iOS full-takeover feel. The display stays above
+        the stage, so it is never obscured.
+      -->
+      <div class="stage">
+        <div
+          class="keyboard"
+          :class="{ 'keyboard--hidden': historyVisible }"
+        >
+          <div class="buttons">
+            <!-- Row 1 -->
+            <button
+              class="btn ac"
+              data-test="ac"
+              data-label="AC"
+              @click="reset"
+            >AC</button>
+            <button
+              class="btn op"
+              data-test="negate"
+              data-label="±"
+              @click="handleNegate()"
+            >±</button>
+            <button
+              class="btn op"
+              data-test="paren"
+              data-paren="1"
+              data-label="( )"
+              @click="handleSmartParen()"
+            >( )</button>
+            <button
+              class="btn op"
+              data-test="op"
+              data-label="%"
+              @click="handlePercentage()"
+            >%</button>
+            <button
+              class="btn op"
+              data-test="op"
+              data-label="/"
+              @click="handleOp('/')"
+            >÷</button>
+
+            <!-- Row 2 -->
+            <button class="btn num" data-test="num" data-label="7" @click="handleNumber('7')">7</button>
+            <button class="btn num" data-test="num" data-label="8" @click="handleNumber('8')">8</button>
+            <button class="btn num" data-test="num" data-label="9" @click="handleNumber('9')">9</button>
+            <button class="btn op" data-test="op" data-label="*" @click="handleOp('*')">×</button>
+
+            <!-- Row 3 -->
+            <button class="btn num" data-test="num" data-label="4" @click="handleNumber('4')">4</button>
+            <button class="btn num" data-test="num" data-label="5" @click="handleNumber('5')">5</button>
+            <button class="btn num" data-test="num" data-label="6" @click="handleNumber('6')">6</button>
+            <button class="btn op" data-test="op" data-label="-" @click="handleOp('-')">−</button>
+
+            <!-- Row 4 -->
+            <button class="btn num" data-test="num" data-label="1" @click="handleNumber('1')">1</button>
+            <button class="btn num" data-test="num" data-label="2" @click="handleNumber('2')">2</button>
+            <button class="btn num" data-test="num" data-label="3" @click="handleNumber('3')">3</button>
+            <button class="btn op" data-test="op" data-label="+" @click="handleOp('+')">+</button>
+
+            <!-- Row 5 -->
+            <button class="btn num" data-test="num" data-label="0" @click="handleNumber('0')">0</button>
+            <button class="btn num" data-test="decimal" data-label="." @click="handleDecimal()">.</button>
+            <button
+              class="btn"
+              data-test="backspace"
+              data-label="backspace"
+              @click="handleBackspace()"
+            >⌫</button>
+            <button
+              class="btn eq"
+              data-test="equals"
+              data-label="="
+              @click="calculateExpression()"
+            >=</button>
+          </div>
         </div>
-        <ul class="history-list" data-testid="history-list">
-          <li
-            v-for="(entry, i) in historyEntries"
-            :key="i"
-            class="history-item"
-            :data-test="'history-entry'"
-            @click="loadHistoryEntry(entry)"
-          >
-            {{ entry }}
-          </li>
-        </ul>
-        <div v-if="historyEntries.length === 0" class="history-empty">尚無紀錄</div>
+
+        <!-- History panel: full-takeover overlay that slides up over the
+             keyboard. Stays in the DOM (v-show) so existing tests can read
+             the list without opening it. -->
+        <div
+          class="history-panel"
+          data-test="history-panel"
+          v-show="historyVisible"
+          :class="{ 'history-panel--open': historyVisible }"
+        >
+          <div class="history-head">
+            <button
+              class="history-chevron"
+              data-test="history-close"
+              data-label="close-history"
+              @click="closeHistory()"
+              :aria-label="'收合歷史'"
+            >
+              ⌃
+            </button>
+            <span class="history-title">計算歷史</span>
+            <button
+              class="history-clear"
+              data-test="history-clear"
+              data-label="clear-history"
+              @click="clearHistory()"
+            >
+              清除
+            </button>
+          </div>
+
+          <!-- "目前的運算式" bar: the expression currently on the display. -->
+          <div class="current-expr" data-test="current-expression">
+            <span class="current-expr-label">目前的運算式</span>
+            <span class="current-expr-value">{{ displayValue }}</span>
+          </div>
+
+          <ul class="history-list" data-testid="history-list">
+            <li
+              v-for="(entry, i) in historyEntries"
+              :key="i"
+              class="history-item"
+              :data-test="'history-entry'"
+              @click="loadHistoryEntry(entry)"
+            >
+              {{ entry }}
+            </li>
+          </ul>
+          <div v-if="historyEntries.length === 0" class="history-empty">尚無紀錄</div>
+        </div>
       </div>
     </div>
   </div>
@@ -471,50 +527,116 @@ button[data-label="( )"] {
   font-size: 1.35rem;
 }
 
-/* --- History panel (collapsible overlay, iOS-style accents) --- */
+/* --- Clock icon toggle, top-left (iOS style) --- */
 .history-toggle {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  width: auto;
+  top: 2px;
+  left: 2px;
+  width: 34px;
+  height: 34px;
   aspect-ratio: auto;
-  border-radius: 999px;
-  padding: 4px 14px;
-  font-size: 0.8rem;
-  background: rgba(181, 193, 158, 0.18);
+  border-radius: 50%;
+  padding: 0;
+  font-size: 0;
+  background: rgba(181, 193, 158, 0.15);
   color: #b5c19e;
-  border: 1px solid rgba(181, 193, 158, 0.35);
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 30;
+}
+
+.history-toggle:hover {
+  background: rgba(181, 193, 158, 0.28);
+}
+
+.history-icon {
+  display: block;
+}
+
+/* --- Stage: keyboard and history panel overlap in the same box; opening
+     history fades the keyboard down and slides the panel up to fill it. The
+     display stays above the stage, so it is never covered. --- */
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 360px;
+}
+
+.keyboard {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.keyboard--hidden {
+  transform: translateY(28px);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .history-panel {
   position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  max-height: 60%;
-  overflow-y: auto;
-  margin: 0 8px;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
   padding: 12px 14px;
-  background: rgba(22, 22, 26, 0.96);
+  background: rgba(22, 22, 26, 0.97);
   border: 1px solid rgba(181, 193, 158, 0.25);
-  border-radius: 14px;
-  backdrop-filter: blur(8px);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
   color: #f4efdc;
   font-size: 0.95rem;
   z-index: 20;
+  /* Slide up + fade in whenever the panel appears (v-show reveals it). */
+  animation: panel-in 0.3s ease both;
+}
+
+@keyframes panel-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .history-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(244, 239, 220, 0.1);
+}
+
+/* Chevron collapse button on the left of the header. */
+.history-chevron {
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 1.1rem;
+  background: transparent;
+  color: #b5c19e;
+  border: none;
+  cursor: pointer;
+}
+
+.history-chevron:hover {
+  background: rgba(181, 193, 158, 0.16);
 }
 
 .history-title {
+  flex: 1;
   font-size: 0.8rem;
   letter-spacing: 0.08em;
   color: #b5c19e;
+  text-align: center;
 }
 
 .history-clear {
@@ -528,23 +650,51 @@ button[data-label="( )"] {
   border: 1px solid rgba(244, 239, 220, 0.35);
 }
 
+/* "目前的運算式" bar: shows the expression currently on the display. */
+.current-expr {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  margin-bottom: 6px;
+  background: rgba(181, 193, 158, 0.12);
+  border-radius: 10px;
+}
+
+.current-expr-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: rgba(244, 239, 220, 0.6);
+}
+
+.current-expr-value {
+  text-align: right;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  color: #f4efdc;
+  word-break: break-all;
+}
+
 .history-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .history-item {
-  padding: 6px 4px;
+  padding: 7px 4px;
   border-bottom: 1px solid rgba(244, 239, 220, 0.08);
   cursor: pointer;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  border-radius: 6px;
+  transition: background 0.1s ease;
 }
 
 .history-item:hover {
   background: rgba(181, 193, 158, 0.12);
-  border-radius: 6px;
 }
 
 .history-empty {
