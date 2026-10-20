@@ -166,3 +166,20 @@ test('history records a calculation and reloading it restores the result', async
   await entry.first().click();
   await expect(display(page)).toHaveText('8');
 });
+
+test('clicking a history entry auto-collapses the panel back to the keyboard', async ({
+  page,
+}) => {
+  // Compute 3 + 8 = 11 so a history line actually gets recorded.
+  await press(page, '3');
+  await press(page, '+');
+  await press(page, '8');
+  await press(page, '=');
+  // Open the history panel via its toggle button.
+  await page.locator('button[data-test="history-toggle"]').click();
+  const list = page.locator('[data-testid="history-list"]');
+  await expect(list).toBeVisible();
+  // Tapping a history line auto-collapses the panel and returns the keyboard.
+  await page.locator('[data-test="history-entry"]').first().click();
+  await expect(list).toBeHidden();
+});
