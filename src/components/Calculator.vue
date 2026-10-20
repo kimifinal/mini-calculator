@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { calculate, percentage, type Operator } from '../lib/calculator';
 import { parseExpression } from '../lib/expression';
+import { useHistory } from '../composables/useHistory';
 
 // The component emits an event whenever a result is computed, so a parent
 // app / test harness can observe calculation outcomes.
@@ -26,6 +27,33 @@ const mode = ref<Mode>('legacy');
 // Set after '=' so the next digit starts a fresh calc instead of appending
 // to the result string (the two-step legacy chain keeps going via the op).
 const justEvaluated = ref(false);
+
+// --- calculation history (UI-only; see src/composables/useHistory.ts) ---
+const { entries: historyEntries, record: recordHistory, clear: clearHistory } =
+  useHistory();
+// The history panel is hidden by default and toggled by its button.
+const historyVisible = ref(false);
+
+function toggleHistory() {
+  historyVisible.value = !historyVisible.value;
+}
+
+/**
+ * Clicking a history entry loads its RESULT into the display and starts a
+ * fresh calc — exactly the effect of a just-pressed '=': the next digit
+ * replaces the display instead of appending. We also return to legacy mode so
+ * the two-step chain behaves like a normal post-equal state.
+ */
+function loadHistoryEntry(entry: string) {
+  const result = entry.split('=')[entry.split('=').length - 1].trim();
+  displayValue.value = result;
+  firstOperand.value = null;
+  operator.value = null;
+  waitingForSecondOperand.value = false;
+  hasError.value = false;
+  justEvaluated.value = true;
+  mode.value = 'legacy';
+}
 
 function handleNumber(num: string) {
   if (mode.value === 'expression') {
@@ -165,7 +193,8 @@ function calculateExpression() {
   if (hasError.value) return;
 
   if (mode.value === 'expression') {
-    const result = parseExpression(displayValue.value);
+    const expression = displayValue.value;
+    const result = parseExpression(expression);
     if (result === 'Error') {
       displayValue.value = 'Error';
       hasError.value = true;
@@ -173,6 +202,8 @@ function calculateExpression() {
       return;
     }
     displayValue.value = String(Math.round((result + Number.EPSILON) * 1e12) / 1e12);
+    // Record the expression line, e.g. "2+3*4 = 14", in expression mode.
+    recordHistory(`${expression} = ${displayValue.value}`);
     mode.value = 'legacy';
     firstOperand.value = null;
     operator.value = null;
@@ -198,6 +229,10 @@ function calculateExpression() {
 
   // Trim float noise so 0.1 + 0.2 renders "0.3", not "0.30000000000000004".
   displayValue.value = String(Math.round((result + Number.EPSILON) * 1e12) / 1e12);
+  // Record the legacy line, e.g. "5 + 3 = 8", BEFORE resetting the operands.
+  recordHistory(
+    `${firstOperand.value} ${operator.value} ${secondOperand} = ${displayValue.value}`,
+  );
   firstOperand.value = null;
   operator.value = null;
   waitingForSecondOperand.value = false;
@@ -311,6 +346,47 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
           @click="calculateExpression()"
         >=</button>
       </div>
+
+      <!-- Calculation history: a collapsible overlay list. The toggle shows/hides
+           the panel; each recorded entry is clickable to reload its result. -->
+      <button
+        class="btn history-toggle"
+        data-test="history-toggle"
+        data-label="history"
+        @click="toggleHistory()"
+      >
+        歷史
+      </button>
+
+      <div
+        class="history-panel"
+        data-test="history-panel"
+        v-show="historyVisible"
+      >
+        <div class="history-head">
+          <span class="history-title">計算歷史</span>
+          <button
+            class="history-clear"
+            data-test="history-clear"
+            data-label="clear-history"
+            @click="clearHistory()"
+          >
+            清除
+          </button>
+        </div>
+        <ul class="history-list" data-testid="history-list">
+          <li
+            v-for="(entry, i) in historyEntries"
+            :key="i"
+            class="history-item"
+            :data-test="'history-entry'"
+            @click="loadHistoryEntry(entry)"
+          >
+            {{ entry }}
+          </li>
+        </ul>
+        <div v-if="historyEntries.length === 0" class="history-empty">尚無紀錄</div>
+      </div>
     </div>
   </div>
 </template>
@@ -393,5 +469,88 @@ button.eq {
 
 button[data-label="( )"] {
   font-size: 1.35rem;
+}
+
+/* --- History panel (collapsible overlay, iOS-style accents) --- */
+.history-toggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: auto;
+  aspect-ratio: auto;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  background: rgba(181, 193, 158, 0.18);
+  color: #b5c19e;
+  border: 1px solid rgba(181, 193, 158, 0.35);
+}
+
+.history-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  max-height: 60%;
+  overflow-y: auto;
+  margin: 0 8px;
+  padding: 12px 14px;
+  background: rgba(22, 22, 26, 0.96);
+  border: 1px solid rgba(181, 193, 158, 0.25);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  color: #f4efdc;
+  font-size: 0.95rem;
+  z-index: 20;
+}
+
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.history-title {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: #b5c19e;
+}
+
+.history-clear {
+  width: auto;
+  aspect-ratio: auto;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.75rem;
+  background: transparent;
+  color: #f4efdc;
+  border: 1px solid rgba(244, 239, 220, 0.35);
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-item {
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(244, 239, 220, 0.08);
+  cursor: pointer;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-item:hover {
+  background: rgba(181, 193, 158, 0.12);
+  border-radius: 6px;
+}
+
+.history-empty {
+  padding: 8px 4px;
+  color: rgba(244, 239, 220, 0.5);
+  text-align: center;
+  font-size: 0.85rem;
 }
 </style>
