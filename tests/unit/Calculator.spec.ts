@@ -381,5 +381,52 @@ describe('Calculator component', () => {
         ) as string[];
         expect(stored.some((s) => s.includes('Error'))).toBe(false);
       });
+
+      it('tapping a history entry auto-collapses the panel back to the keyboard', async () => {
+        // B: after picking a result the panel slides away (iOS behaviour).
+        const wrapper = mount(Calculator);
+        await pressButton(wrapper, '5');
+        await pressButton(wrapper, '+');
+        await pressButton(wrapper, '3');
+        await pressButton(wrapper, '=');
+        // Open the panel; v-show removes the inline display:none.
+        await pressButton(wrapper, 'history');
+        const panel = wrapper.find('[data-test="history-panel"]');
+        expect(panel.exists()).toBe(true);
+        expect((panel.attributes('style') || '')).not.toContain('display: none');
+        // Tapping the entry loads its result AND collapses the panel.
+        const entry = wrapper.find('[data-test="history-entry"]');
+        await entry.trigger('click');
+        expect(displayText(wrapper)).toBe('8');
+        expect((panel.attributes('style') || '')).toContain('display: none');
+      });
+
+      it('the chevron button collapses the panel back to the keyboard', async () => {
+        // B: the ⌃ chevron in the panel header dismisses the panel without
+        // loading any value.
+        const wrapper = mount(Calculator);
+        await pressButton(wrapper, '6');
+        await pressButton(wrapper, '+');
+        await pressButton(wrapper, '7');
+        await pressButton(wrapper, '=');
+        await pressButton(wrapper, 'history');
+        const panel = wrapper.find('[data-test="history-panel"]');
+        expect((panel.attributes('style') || '')).not.toContain('display: none');
+        await pressButton(wrapper, 'close-history');
+        expect((panel.attributes('style') || '')).toContain('display: none');
+      });
+
+      it('the current-expression bar renders in the open panel', async () => {
+        // B: the "目前的運算式" bar shows the value currently on the display.
+        const wrapper = mount(Calculator);
+        await pressButton(wrapper, '5');
+        await pressButton(wrapper, '+');
+        await pressButton(wrapper, '3');
+        await pressButton(wrapper, '=');
+        await pressButton(wrapper, 'history');
+        const bar = wrapper.find('[data-test="current-expression"]');
+        expect(bar.exists()).toBe(true);
+        expect(bar.text()).toContain('8');
+      });
     });
     });
