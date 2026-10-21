@@ -3,13 +3,23 @@
  *
  * These drive the *production* preview build (see playwright.config.ts
  * webServer) in a real Chromium browser, clicking the on-screen buttons —
- * the exact path a user takes. They mirror spec.md and add the modulo and
- * reset regressions so a UI regression anywhere in the chain fails loudly.
+ * the exact path a user takes.
+ *
+ * Semantics under test (decision 1.B, iOS style):
+ *   MAIN column  = the WHOLE running expression. Type 9, then +, then 9 and
+ *                  the main line reads "9+9" the entire way.
+ *   PREVIEW line = the live budget/result under the expression ("18" under
+ *                  "9+9"), shown via data-testid="display-preview".
+ *   "="          = promotes the result to the main column ("18"); the preview
+ *                  line then empties itself.
  */
 import { test, expect } from '@playwright/test';
 
 const display = (page: import('@playwright/test').Page) =>
   page.getByTestId('display');
+
+const preview = (page: import('@playwright/test').Page) =>
+  page.getByTestId('display-preview');
 
 async function press(page: import('@playwright/test').Page, label: string) {
   await page.locator(`button[data-label="${label}"]`).first().click();
@@ -21,27 +31,45 @@ test.beforeEach(async ({ page }) => {
   await expect(display(page)).toHaveText('0');
 });
 
-test('adds two numbers: 5 + 3 = 8', async ({ page }) => {
+// --- Core arithmetic: 1.B main-column = whole expression -------------------
+
+test('adds: main line tracks the whole expression 5 + 3 = 8', async ({
+  page,
+}) => {
   await press(page, '5');
+  await expect(display(page)).toHaveText('5');
   await press(page, '+');
+  await expect(display(page)).toHaveText('5+');
   await press(page, '3');
+  await expect(display(page)).toHaveText('5+3');
   await press(page, '=');
   await expect(display(page)).toHaveText('8');
 });
 
-test('subtracts two numbers: 9 - 4 = 5', async ({ page }) => {
+test('subtracts: main line tracks the whole expression 9 - 4 = 5', async ({
+  page,
+}) => {
   await press(page, '9');
+  await expect(display(page)).toHaveText('9');
   await press(page, '-');
+  await expect(display(page)).toHaveText('9-');
   await press(page, '4');
+  await expect(display(page)).toHaveText('9-4');
   await press(page, '=');
   await expect(display(page)).toHaveText('5');
 });
 
-test('divides two numbers: 10 / 2 = 5', async ({ page }) => {
+test('divides: main line tracks the whole expression 10 / 2 = 5', async ({
+  page,
+}) => {
   await press(page, '1');
+  await expect(display(page)).toHaveText('1');
   await press(page, '0');
+  await expect(display(page)).toHaveText('10');
   await press(page, '/');
+  await expect(display(page)).toHaveText('10/');
   await press(page, '2');
+  await expect(display(page)).toHaveText('10/2');
   await press(page, '=');
   await expect(display(page)).toHaveText('5');
 });
@@ -51,8 +79,67 @@ test('shows Error on division by zero: 10 / 0 = Error', async ({ page }) => {
   await press(page, '0');
   await press(page, '/');
   await press(page, '0');
+  await expect(display(page)).toHaveText('10/0');
   await press(page, '=');
   await expect(display(page)).toHaveText('Error');
+});
+
+// --- Preview (result) line: reserved space + sticky + "=" clears -----------
+// The preview line is ALWAYS rendered (its space is reserved, so there is no
+// layout jump when the budget appears/disappears). It shows the live result
+// under the expression and stays STICKY when a trailing operator is appended;
+// it clears only on an error or right after "=" (when the result becomes the
+// main display, so a second line would repeat it).
+
+test('preview space is reserved even with no operator (no layout jump)', async ({
+  page,
+}) => {
+  // Before any operator, the result line exists but is empty — its height is
+  // already claimed, so typing the first "+" cannot make a row pop in.
+  await expect(preview(page)).toBeVisible();
+  await expect(preview(page)).toHaveText('');
+});
+
+test('preview shows the live result under the expression (9 + 9 -> 18)', async ({
+  page,
+}) => {
+  await press(page, '9');
+  await press(page, '+');
+  await expect(display(page)).toHaveText('9+');
+  await press(page, '9');
+  await expect(display(page)).toHaveText('9+9');
+  // The live budget appears in the second column.
+  await expect(preview(page)).toHaveText('18');
+});
+
+test('preview stays sticky when a trailing operator is appended (9+9+ -> 18)', async ({
+  page,
+}) => {
+  await press(page, '9');
+  await press(page, '+');
+  await press(page, '9');
+  await expect(preview(page)).toHaveText('18');
+  // Append another operator: the main line becomes "9+9+" but the RESULT must
+  // stay — it must NOT vanish while the user is mid-entrance.
+  await press(page, '+');
+  await expect(display(page)).toHaveText('9+9+');
+  await expect(preview(page)).toHaveText('18');
+});
+
+test('"=" promotes the result; preview clears but keeps its reserved space', async ({
+  page,
+}) => {
+  await press(page, '9');
+  await press(page, '+');
+  await press(page, '9');
+  await expect(preview(page)).toHaveText('18');
+  // Pressing "=" promotes the result to the main column; the preview line then
+  // clears (the result is now the main display). It is emptied, not removed —
+  // the element stays reserved so nothing jumps.
+  await press(page, '=');
+  await expect(display(page)).toHaveText('18');
+  await expect(preview(page)).toBeVisible();
+  await expect(preview(page)).toHaveText('');
 });
 
 test('resets to 0 after a division-by-zero error', async ({ page }) => {
@@ -72,6 +159,8 @@ test('computes percentage: 50 % = 0.5', async ({ page }) => {
   await press(page, '%');
   await expect(display(page)).toHaveText('0.5');
 });
+
+// --- Expression mode (parentheses) ----------------------------------------
 
 test('expression mode: (1+2)*(3+4) = 21', async ({ page }) => {
   // The single "()" button auto-inserts '(' or ')' based on context, so each
@@ -143,6 +232,8 @@ test('negate button toggles sign: 5 -> ± -> -5 -> ± -> 5', async ({ page }) =>
   await expect(display(page)).toHaveText('5');
 });
 
+// --- History --------------------------------------------------------------
+
 test('history records a calculation and reloading it restores the result', async ({
   page,
 }) => {
@@ -150,6 +241,7 @@ test('history records a calculation and reloading it restores the result', async
   await press(page, '5');
   await press(page, '+');
   await press(page, '3');
+  await expect(display(page)).toHaveText('5+3');
   await press(page, '=');
   await expect(display(page)).toHaveText('8');
 
@@ -189,6 +281,7 @@ test('tapping a history entry auto-collapses back to the keyboard', async ({
   await press(page, '4');
   await press(page, '*');
   await press(page, '9');
+  await expect(display(page)).toHaveText('4*9');
   await press(page, '='); // 36
   await page.locator('button[data-test="history-toggle"]').click();
   const list = page.locator('[data-testid="history-list"]');

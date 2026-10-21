@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { calculate, percentage, type Operator } from '../lib/calculator';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { percentage, type Operator } from '../lib/calculator';
 import { parseExpression } from '../lib/expression';
 import { useHistory } from '../composables/useHistory';
 
@@ -10,23 +10,24 @@ const emit = defineEmits<{
   (e: 'result-calculated', value: string): void;
 }>();
 
-// Two modes:
-//  - 'legacy': the two-step state machine (a -> op -> b -> =), unchanged.
-//  - 'expression': free-form entry of a full expression string, evaluated
-//    by the shunting-yard parser when '=' is pressed. Pressing "( )" flips to
-//    expression mode; AC returns to legacy mode.
-type Mode = 'legacy' | 'expression';
-
-// --- reactive state (mirrors the legacy index.html behaviour) ---
+// --- Decision 1.B semantics -------------------------------------------------
+// The MAIN column always reads the whole running expression (iOS style):
+// type 9, then +, then 9 and the main line shows "9+9". A SMALLER second
+// column under it shows the live budget/preview result ("18"). Pressing "="
+// promotes the result to the main column ("18") and the preview then empties.
+//
+// A pure-number expression string is the only model the UI now understands:
+// `displayValue` IS the expression itself, evaluated by the shunting-yard
+// parser (the arithmetic SSOT in src/lib/expression.ts) at "=". No legacy
+// two-step machine remains, so the main line can never fall behind the
+// expression the user sees.
 const displayValue = ref('0');
-const firstOperand = ref<number | null>(null);
-const operator = ref<Operator | null>(null);
-const waitingForSecondOperand = ref(false);
-const hasError = ref(false);
-const mode = ref<Mode>('legacy');
-// Set after '=' so the next digit starts a fresh calc instead of appending
-// to the result string (the two-step legacy chain keeps going via the op).
+// After "=" the next digit / decimal starts a fresh expression instead of
+// appending to the just-computed result string (iOS behaviour), and loading a
+// history entry sets the same flag.
 const justEvaluated = ref(false);
+// A parser error (e.g. 10 / 0) latches the display to "Error" until cleared.
+const hasError = ref(false);
 
 // --- calculation history (UI-only; see src/composables/useHistory.ts) ---
 const { entries: historyEntries, record: recordHistory, clear: clearHistory } =
@@ -43,74 +44,121 @@ function closeHistory() {
 }
 
 /**
+ * The live "preview" line under the main expression. While the user is typing
+ * an expression that still contains an operator, this shows its computed
+ * value (e.g. "9+9" -> "18"). Once "=" promotes the result to the main column
+ * the expression reduces to a single number, so the preview naturally
+ * empties and the `v-if` hides the line.
+ */
+const displayPreview = computed(() => {
+  const expr = displayValue.value;
+
+  // On an error or right after "=", the preview line clears: the result is now
+  // the main display, so a second line would just repeat it.
+  if (hasError.value || justEvaluated.value) return '';
+
+  // Trim any dangling trailing operator (e.g. "9+9+" right after a second "+")
+  // and evaluate the last *valid* fragment, so the preview stays STICKY instead
+  // of vanishing the moment an operator is appended. "9+9+" -> "9+9" -> 18.
+  const trimmed = expr.replace(/[+\-*/]+$/, '');
+  // A lone number (or empty) has no budget to show under it.
+  if (!/[+\-*/]/.test(trimmed)) return '';
+
+  try {
+    const r = parseExpression(trimmed);
+    if (r === 'Error' || typeof r !== 'number') return '';
+    // Guard against absurd-length intermediate results.
+    if (!Number.isFinite(r) || Math.abs(r) > 9.999e15) return '';
+    // Trim floating-point noise (0.1 + 0.2 -> 0.3, not 0.30000000000000004).
+    const rounded = Math.round((r + Number.EPSILON) * 1e12) / 1e12;
+    return String(rounded);
+  } catch {
+    return '';
+  }
+});
+
+/**
  * Tapping a history line loads its RESULT into the display and starts a
- * fresh calc — exactly the effect of a just-pressed '=': the next digit
- * replaces the display instead of appending. We return to legacy mode and,
- * iOS-style, auto-collapse the panel back to the keyboard.
+ * fresh calc — exactly the effect of a just-pressed "=": the next digit
+ * replaces the display instead of appending. We also collapse the panel back
+ * to the keyboard (iOS behaviour).
  */
 function loadHistoryEntry(entry: string) {
-  const result = entry.split('=')[entry.split('=').length - 1].trim();
+  const parts = entry.split('=');
+  const result = parts[parts.length - 1].trim();
   displayValue.value = result;
-  firstOperand.value = null;
-  operator.value = null;
-  waitingForSecondOperand.value = false;
   hasError.value = false;
   justEvaluated.value = true;
-  mode.value = 'legacy';
   // iOS behaviour: after picking a result the panel slides away and the
   // keyboard returns so the user can immediately continue.
   closeHistory();
 }
 
-function handleNumber(num: string) {
-  if (mode.value === 'expression') {
-    displayValue.value += num;
-    return;
+// The trailing operand being typed: everything after the last operator or
+// parenthesis. Used to decide whether another decimal point is allowed in the
+// *current* number, so "1.5+2." is valid but "1.5.5" is not.
+function currentOperand(): string {
+  const s = displayValue.value;
+  let start = 0;
+  for (let i = s.length - 1; i >= 0; i--) {
+    if ('+-*/()'.includes(s[i])) {
+      start = i + 1;
+      break;
+    }
   }
+  return s.slice(start);
+}
+
+function handleNumber(num: string) {
   if (hasError.value) {
     displayValue.value = num;
     hasError.value = false;
+    justEvaluated.value = false;
     return;
   }
-  if (displayValue.value === '0' || waitingForSecondOperand.value || justEvaluated.value) {
+  if (justEvaluated.value) {
+    // Start a fresh expression instead of appending to the old result.
     displayValue.value = num;
-    waitingForSecondOperand.value = false;
     justEvaluated.value = false;
-  } else {
-    displayValue.value += num;
+    return;
   }
+  if (displayValue.value === '0') {
+    displayValue.value = num;
+    return;
+  }
+  displayValue.value += num;
 }
 
 function handleDecimal() {
-  if (mode.value === 'expression') {
-    displayValue.value += '.';
-    return;
-  }
   if (hasError.value) {
     displayValue.value = '0.';
     hasError.value = false;
+    justEvaluated.value = false;
     return;
   }
-  if (!displayValue.value.includes('.')) {
-    displayValue.value += '.';
+  if (justEvaluated.value) {
+    displayValue.value = '0.';
+    justEvaluated.value = false;
+    return;
   }
+  // Only one decimal point per *operand* (the check is on the trailing number).
+  if (currentOperand().includes('.')) return;
+  if (displayValue.value === '') displayValue.value = '0';
+  displayValue.value += '.';
 }
 
 function handleBackspace() {
-  if (mode.value === 'expression') {
-    displayValue.value = displayValue.value.slice(0, -1);
-    return;
-  }
   if (hasError.value) {
     displayValue.value = '0';
     hasError.value = false;
+    justEvaluated.value = false;
     return;
   }
+  justEvaluated.value = false;
   if (displayValue.value.length > 1) {
-    displayValue.value = displayValue.value.slice(0, -1);
-    if (displayValue.value === '-') {
-      displayValue.value = '0';
-    }
+    const s = displayValue.value.slice(0, -1);
+    // Never leave a lone operand sign such as "-".
+    displayValue.value = s === '-' ? '0' : s;
   } else {
     displayValue.value = '0';
   }
@@ -120,69 +168,60 @@ function handlePercentage() {
   if (hasError.value) {
     displayValue.value = '0';
     hasError.value = false;
+    justEvaluated.value = false;
     return;
   }
   displayValue.value = percentage(parseFloat(displayValue.value)).toString();
+  // A percentage result behaves like a just-computed value.
+  justEvaluated.value = true;
 }
 
 /**
- * "±" sign toggle. Flips the sign of the currently-displayed value, matching
+ * "±" sign toggle. Flips the sign of the bare number on the display, matching
  * the iOS calculator. A no-op when the display is '0' (so we never render
- * '-0') or 'Error' (where parseFloat would otherwise yield NaN).
- *
- * In expression mode we only toggle when the whole display is a bare number
- * (optionally already signed); a partial expression like "5+3-" is ambiguous
- * so we leave it untouched.
+ * '-0') or 'Error', and for a partial expression like "5+3-" where a sign
+ * would be ambiguous.
  */
 function handleNegate() {
   if (hasError.value) return; // 'Error' stays 'Error'
   if (displayValue.value === '0') return; // 0 -> 0 is a no-op
-
-  if (mode.value === 'expression') {
-    const s = displayValue.value;
-    if (/^[-+]?\d+(\.\d+)?$/.test(s)) {
-      displayValue.value = s.startsWith('-') ? s.slice(1) : `-${s}`;
-    }
-    return;
+  const s = displayValue.value;
+  // Only toggle when the whole display is a bare (optionally signed) number.
+  if (/^[+-]?\d+(\.\d+)?$/.test(s)) {
+    displayValue.value = s.startsWith('-') ? s.slice(1) : `-${s}`;
   }
-
-  displayValue.value = String(-parseFloat(displayValue.value));
 }
 
 function handleOp(op: Operator) {
-  // In expression mode operators just append to the expression string,
-  // letting the parser resolve precedence at '='.
-  if (mode.value === 'expression') {
-    displayValue.value += op;
-    justEvaluated.value = false;
+  if (hasError.value) return;
+  justEvaluated.value = false;
+  const s = displayValue.value;
+  // Replace a trailing operator with the new one (5 + -> 5 -) so we never get
+  // a malformed "5 +-".
+  if (/[+\-*/]$/.test(s)) {
+    displayValue.value = s.slice(0, -1) + op;
     return;
   }
-  if (hasError.value) return;
-  // Chaining after '=': the displayed result becomes the firstOperand.
-  firstOperand.value = parseFloat(displayValue.value);
-  operator.value = op;
-  waitingForSecondOperand.value = true;
-  justEvaluated.value = false;
+  displayValue.value = s + op;
 }
 
 /**
- * Smart parenthesis button ("( )"). Appends ')' when there is an unmatched
- * '(' to close, otherwise '"(''. A digit at the end cannot open a new group
- * (that would be malformed `5(...)`), so in that case we leave the display
- * untouched. First use flips the calculator into expression mode, so the
- * shunting-yard parser takes over precedence at '='.
+ * Smart parenthesis button ("( )"). Appends ")" when there is an unmatched
+ * "(" to close, otherwise "(". A digit at the end cannot open a new group
+ * (that would be the malformed "5(...)"), so in that case we leave the
+ * display untouched. Parenthesised expressions are evaluated with the same
+ * shunting-yard parser as everything else.
  */
 function handleSmartParen() {
   if (hasError.value) return;
-  if (mode.value === 'legacy') mode.value = 'expression';
-
   const s = displayValue.value;
   if (s === '0' || s === '') {
     displayValue.value = '(';
+    justEvaluated.value = false;
     return;
   }
 
-  // A digit or a closing paren at the end can only be *closed*.
+  // A digit or a closing paren at the end can only *close* a group.
   if (/[0-9.)]$/.test(s)) {
     const opens = s.split('(').length - 1;
     const closes = s.split(')').length - 1;
@@ -194,67 +233,69 @@ function handleSmartParen() {
 
   // Ends in an operator or an opening paren: open another group.
   displayValue.value = s + '(';
+  justEvaluated.value = false;
 }
 
+/**
+ * Render a history line from an expression string and its rounded result.
+ * Parenthesised / multi-token expressions are recorded verbatim
+ * ("(2+3*4) = 14"); plain binary operator chains get spaces around each
+ * operator so they read like the legacy two-step recording ("5 + 3 = 8").
+ */
+function formatHistoryLine(expression: string, result: string): string {
+  if (/[()]/.test(expression)) {
+    return `${expression} = ${result}`;
+  }
+  const spaced = expression.replace(/([+\-*/])/g, ' $1 ');
+  return `${spaced} = ${result}`;
+}
+
+/**
+ * "=" — evaluate the whole expression string on the main column. The result is
+ * promoted to the main display (the preview line then empties itself, which is
+ * the 1.B "result up, preview clears" effect), and a history line is recorded.
+ * Division by zero / parser errors show "Error" without writing history.
+ */
 function calculateExpression() {
   if (hasError.value) return;
 
-  if (mode.value === 'expression') {
-    const expression = displayValue.value;
-    const result = parseExpression(expression);
-    if (result === 'Error') {
-      displayValue.value = 'Error';
-      hasError.value = true;
-      emit('result-calculated', displayValue.value);
-      return;
-    }
-    displayValue.value = String(Math.round((result + Number.EPSILON) * 1e12) / 1e12);
-    // Record the expression line, e.g. "2+3*4 = 14", in expression mode.
-    recordHistory(`${expression} = ${displayValue.value}`);
-    mode.value = 'legacy';
-    firstOperand.value = null;
-    operator.value = null;
-    waitingForSecondOperand.value = false;
+  const expression = displayValue.value;
+  // A bare number has nothing to evaluate; leave it on the display. A dangling
+  // paren such as "(3" has no binary operator but is still malformed, so it is
+  // parsed and reported as "Error" like the original parser did.
+  if (!/[+\-*/()]/.test(expression)) {
     justEvaluated.value = true;
-    emit('result-calculated', displayValue.value);
     return;
   }
 
-  if (operator.value === null || firstOperand.value === null) return;
-
-  const secondOperand = parseFloat(displayValue.value);
-  const result = calculate(firstOperand.value, secondOperand, operator.value);
+  let result: number | 'Error';
+  try {
+    result = parseExpression(expression);
+  } catch {
+    result = 'Error';
+  }
 
   if (result === 'Error') {
     displayValue.value = 'Error';
     hasError.value = true;
-    firstOperand.value = null;
-    operator.value = null;
     emit('result-calculated', displayValue.value);
     return;
   }
 
   // Trim float noise so 0.1 + 0.2 renders "0.3", not "0.30000000000000004".
-  displayValue.value = String(Math.round((result + Number.EPSILON) * 1e12) / 1e12);
-  // Record the legacy line, e.g. "5 + 3 = 8", BEFORE resetting the operands.
-  recordHistory(
-    `${firstOperand.value} ${operator.value} ${secondOperand} = ${displayValue.value}`,
-  );
-  firstOperand.value = null;
-  operator.value = null;
-  waitingForSecondOperand.value = false;
+  const rounded = String(Math.round((result + Number.EPSILON) * 1e12) / 1e12);
+  // Record a human-friendly line (see formatHistoryLine) BEFORE promoting.
+  recordHistory(formatHistoryLine(expression, rounded));
+  // Promote the result to the main column; the preview then empties itself.
+  displayValue.value = rounded;
   justEvaluated.value = true;
-  emit('result-calculated', displayValue.value);
+  emit('result-calculated', rounded);
 }
 
 function reset() {
   displayValue.value = '0';
-  firstOperand.value = null;
-  operator.value = null;
-  waitingForSecondOperand.value = false;
   hasError.value = false;
   justEvaluated.value = false;
-  mode.value = 'legacy';
 }
 
 // --- physical keyboard support (best-effort, not part of the e2e suite) ---
@@ -310,6 +351,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
       <!-- Display: always fixed at the top, never covered. -->
       <div class="display" data-testid="display">{{ displayValue }}</div>
+
+      <!--
+        The "preview" line: ALWAYS rendered so its space is reserved (no layout
+        jump when the budget appears/disappears). It shows the live result under
+        the expression (e.g. "18" under "9+9") and is empty otherwise — on an
+        error or right after "=", when the result is already the main display.
+      -->
+      <div
+        class="display-preview"
+        data-testid="display-preview"
+      >
+        {{ displayPreview }}
+      </div>
 
       <!--
         The "stage" holds the keyboard and the history panel as overlapping
@@ -480,6 +534,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   align-items: flex-end;
   justify-content: flex-end;
   overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Preview line: smaller result under the main expression. */
+.display-preview {
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  padding: 0 14px 8px 14px;
+  /* Push the sub-line away from the keypad below for breathing room. */
+  margin-bottom: 8px;
+  text-align: right;
+  font-size: 1.2rem;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  min-height: 22px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
