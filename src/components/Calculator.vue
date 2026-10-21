@@ -457,14 +457,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   position: relative;
   z-index: 10;
   width: 340px;
-  padding: 12px;
-  background: transparent;
+  padding: 16px;
+  /* MD3 elevated shell on surface-container-low with a large shadow. */
+  background: var(--md-sc-low);
+  border-radius: 36px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6),
+    0 8px 24px 4px rgba(0, 0, 0, 0.5),
+    0 24px 48px 12px rgba(0, 0, 0, 0.45);
 }
 
 /* Display */
 .display {
   background: transparent;
-  color: #fff;
+  color: var(--md-on-surface);
   padding: 0 14px 18px 14px;
   text-align: right;
   font-size: 3.4rem;
@@ -475,6 +480,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   align-items: flex-end;
   justify-content: flex-end;
   overflow: hidden;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Layout: 4 columns x 5 rows, all round buttons the same size. */
@@ -486,40 +492,48 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
 button {
   aspect-ratio: 1;
-  border-radius: 50%;
+  /* MD3 medium/large corner radius (expressive rounded squares, not full circles). */
+  border-radius: 26px;
   font-size: 1.6rem;
   border: none;
-  background: #333333;
-  color: #fff;
+  /* Numbers sit on surface-container-highest. */
+  background: var(--md-sc-highest);
+  color: var(--md-on-surface);
   cursor: pointer;
   display: flex;
   justify-content: center;
   align-items: center;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  transition: filter 0.12s ease, transform 0.06s ease;
+  transition: filter 0.12s ease, transform 0.06s ease, background 0.12s ease;
 }
 
 button:hover {
-  filter: brightness(1.25);
+  filter: brightness(1.15);
 }
 
 button:active {
   transform: scale(0.94);
 }
 
-/* operators + AC: sage accent with dark text */
+/* Operators + AC: tonal secondary-container with on-secondary-container text. */
 button.op,
 button.ac {
-  background: #b5c19e;
-  color: #16161a;
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
   font-weight: 500;
 }
 
-/* equals: cream */
+/* AC (destructive clear): MD3 error-container. */
+button.ac {
+  background: var(--md-error-container);
+  color: var(--md-on-error-container);
+}
+
+/* equals: filled primary container with on-primary-container text. */
 button.eq {
-  background: #f4efdc;
-  color: #16161a;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
   font-weight: 600;
 }
 
@@ -527,19 +541,21 @@ button[data-label="( )"] {
   font-size: 1.35rem;
 }
 
-/* --- Clock icon toggle, top-left (iOS style) --- */
+/* --- Clock icon toggle, top-left (MD3 tonal icon button) --- */
 .history-toggle {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 34px;
-  height: 34px;
+  /* Sit inside the shell padding so it aligns with the display row,
+     not jammed in the corner. */
+  top: 16px;
+  left: 16px;
+  width: 40px;
+  height: 40px;
   aspect-ratio: auto;
   border-radius: 50%;
   padding: 0;
   font-size: 0;
-  background: rgba(181, 193, 158, 0.15);
-  color: #b5c19e;
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
   border: none;
   display: flex;
   justify-content: center;
@@ -548,25 +564,27 @@ button[data-label="( )"] {
 }
 
 .history-toggle:hover {
-  background: rgba(181, 193, 158, 0.28);
+  background: var(--md-sc-high);
 }
 
 .history-icon {
   display: block;
 }
 
-/* --- Stage: keyboard and history panel overlap in the same box; opening
-     history fades the keyboard down and slides the panel up to fill it. The
-     display stays above the stage, so it is never covered. --- */
+/* --- Stage: the keyboard sits in normal flow and defines the stage's height
+     (so the shell background always covers all 6 button rows). The history
+     panel overlays the same space while hidden/animating. Opening history
+     fades the keyboard; the panel slides up on top. Display stays above the
+     stage so it is never covered. --- */
 .stage {
   position: relative;
   flex: 1;
-  min-height: 360px;
 }
 
 .keyboard {
-  position: absolute;
-  inset: 0;
+  /* In-flow (not absolute): the grid's 6 rows drive the stage height, so the
+     background covers the `=` row and nothing overflows the shell. */
+  position: relative;
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
@@ -582,11 +600,13 @@ button[data-label="( )"] {
   display: flex;
   flex-direction: column;
   padding: 12px 14px;
-  background: rgba(22, 22, 26, 0.97);
-  border: 1px solid rgba(181, 193, 158, 0.25);
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
-  color: #f4efdc;
+  /* MD3 solid tonal surface with elevation (glass removed). */
+  background: var(--md-sc-highest);
+  border: none;
+  border-radius: 28px;
+  backdrop-filter: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 16px 4px rgba(0, 0, 0, 0.4);
+  color: var(--md-on-surface);
   font-size: 0.95rem;
   z-index: 20;
   /* Slide up + fade in whenever the panel appears (v-show reveals it). */
@@ -610,7 +630,7 @@ button[data-label="( )"] {
   gap: 10px;
   margin-bottom: 8px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(244, 239, 220, 0.1);
+  border-bottom: 1px solid var(--md-outline-variant);
 }
 
 /* Chevron collapse button on the left of the header. */
@@ -618,24 +638,24 @@ button[data-label="( )"] {
   width: auto;
   height: auto;
   aspect-ratio: auto;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 2px 8px;
   font-size: 1.1rem;
   background: transparent;
-  color: #b5c19e;
+  color: var(--md-primary);
   border: none;
   cursor: pointer;
 }
 
 .history-chevron:hover {
-  background: rgba(181, 193, 158, 0.16);
+  background: rgba(208, 188, 255, 0.16);
 }
 
 .history-title {
   flex: 1;
   font-size: 0.8rem;
   letter-spacing: 0.08em;
-  color: #b5c19e;
+  color: var(--md-on-surface-variant);
   text-align: center;
 }
 
@@ -643,11 +663,13 @@ button[data-label="( )"] {
   width: auto;
   aspect-ratio: auto;
   border-radius: 999px;
-  padding: 2px 12px;
-  font-size: 0.75rem;
-  background: transparent;
-  color: #f4efdc;
-  border: 1px solid rgba(244, 239, 220, 0.35);
+  padding: 3px 14px;
+  font-size: 0.78rem;
+  background: var(--md-sc-high);
+  color: var(--md-on-surface);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 /* "目前的運算式" bar: shows the expression currently on the display. */
@@ -657,21 +679,21 @@ button[data-label="( )"] {
   gap: 2px;
   padding: 8px 10px 10px;
   margin-bottom: 6px;
-  background: rgba(181, 193, 158, 0.12);
-  border-radius: 10px;
+  background: rgba(208, 188, 255, 0.10);
+  border-radius: 12px;
 }
 
 .current-expr-label {
   font-size: 0.68rem;
   letter-spacing: 0.06em;
-  color: rgba(244, 239, 220, 0.6);
+  color: var(--md-on-surface-variant);
 }
 
 .current-expr-value {
   text-align: right;
   font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
-  color: #f4efdc;
+  color: var(--md-on-primary-container);
   word-break: break-all;
 }
 
@@ -685,7 +707,7 @@ button[data-label="( )"] {
 
 .history-item {
   padding: 7px 4px;
-  border-bottom: 1px solid rgba(244, 239, 220, 0.08);
+  border-bottom: 1px solid var(--md-outline-variant);
   cursor: pointer;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -694,12 +716,12 @@ button[data-label="( )"] {
 }
 
 .history-item:hover {
-  background: rgba(181, 193, 158, 0.12);
+  background: rgba(208, 188, 255, 0.12);
 }
 
 .history-empty {
   padding: 8px 4px;
-  color: rgba(244, 239, 220, 0.5);
+  color: var(--md-on-surface-variant);
   text-align: center;
   font-size: 0.85rem;
 }
