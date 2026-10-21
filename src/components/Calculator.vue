@@ -544,8 +544,10 @@ button[data-label="( )"] {
 /* --- Clock icon toggle, top-left (MD3 tonal icon button) --- */
 .history-toggle {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  /* Sit inside the shell padding so it aligns with the display row,
+     not jammed in the corner. */
+  top: 16px;
+  left: 16px;
   width: 40px;
   height: 40px;
   aspect-ratio: auto;
@@ -569,18 +571,20 @@ button[data-label="( )"] {
   display: block;
 }
 
-/* --- Stage: keyboard and history panel overlap in the same box; opening
-     history fades the keyboard down and slides the panel up to fill it. The
-     display stays above the stage, so it is never covered. --- */
+/* --- Stage: the keyboard sits in normal flow and defines the stage's height
+     (so the shell background always covers all 6 button rows). The history
+     panel overlays the same space while hidden/animating. Opening history
+     fades the keyboard; the panel slides up on top. Display stays above the
+     stage so it is never covered. --- */
 .stage {
   position: relative;
   flex: 1;
-  min-height: 360px;
 }
 
 .keyboard {
-  position: absolute;
-  inset: 0;
+  /* In-flow (not absolute): the grid's 6 rows drive the stage height, so the
+     background covers the `=` row and nothing overflows the shell. */
+  position: relative;
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
