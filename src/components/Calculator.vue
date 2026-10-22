@@ -390,6 +390,22 @@ function onDisplayPointerDown() {
   copyTimer = setTimeout(copyValue, 400);
 }
 
+/**
+ * Keyboard-accessible copy. The long-press gesture (#25) has no keyboard path,
+ * so Enter / Space while the DISPLAY is focused copies its current value,
+ * mirroring the pointer gesture and the existing "已複製" feedback.
+ * preventDefault + stopPropagation stop the window-level "=" (Enter) handler in
+ * onKey from ALSO evaluating a FOCUSED display; a NON-focused Enter (on the
+ * body) still calculates via onKey exactly as before. Reuses copyValue().
+ */
+function onDisplayKeydown(ev: KeyboardEvent) {
+  if (ev.key === 'Enter' || ev.key === ' ') {
+    ev.preventDefault();
+    ev.stopPropagation();
+    copyValue();
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', onKey);
 });
@@ -437,12 +453,17 @@ onBeforeUnmount(() => {
       <div
         class="display"
         data-testid="display"
+        role="status"
+        aria-live="polite"
+        tabindex="0"
+        aria-label="結果, 複製到剪貼簿"
         :class="{ 'display--copied': justCopied }"
         @pointerdown="onDisplayPointerDown"
         @pointerup="clearLongPress()"
         @pointerleave="clearLongPress()"
         @pointercancel="clearLongPress()"
         @contextmenu.prevent
+        @keydown="onDisplayKeydown"
       >{{ displayValue }}</div>
 
       <!--
@@ -483,6 +504,7 @@ onBeforeUnmount(() => {
               class="btn op"
               data-test="negate"
               data-label="±"
+              aria-label="變號"
               @click="handleNegate()"
             >±</button>
             <button
@@ -490,18 +512,21 @@ onBeforeUnmount(() => {
               data-test="paren"
               data-paren="1"
               data-label="( )"
+              aria-label="開括號"
               @click="handleSmartParen()"
             >( )</button>
             <button
               class="btn op"
               data-test="op"
               data-label="%"
+              aria-label="百分比"
               @click="handlePercentage()"
             >%</button>
             <button
               class="btn op"
               data-test="op"
               data-label="/"
+              aria-label="除"
               @click="handleOp('/')"
             >÷</button>
 
@@ -509,33 +534,35 @@ onBeforeUnmount(() => {
             <button class="btn num" data-test="num" data-label="7" @click="handleNumber('7')">7</button>
             <button class="btn num" data-test="num" data-label="8" @click="handleNumber('8')">8</button>
             <button class="btn num" data-test="num" data-label="9" @click="handleNumber('9')">9</button>
-            <button class="btn op" data-test="op" data-label="*" @click="handleOp('*')">×</button>
+            <button class="btn op" data-test="op" data-label="*" aria-label="乘" @click="handleOp('*')">×</button>
 
             <!-- Row 3 -->
             <button class="btn num" data-test="num" data-label="4" @click="handleNumber('4')">4</button>
             <button class="btn num" data-test="num" data-label="5" @click="handleNumber('5')">5</button>
             <button class="btn num" data-test="num" data-label="6" @click="handleNumber('6')">6</button>
-            <button class="btn op" data-test="op" data-label="-" @click="handleOp('-')">−</button>
+            <button class="btn op" data-test="op" data-label="-" aria-label="減" @click="handleOp('-')">−</button>
 
             <!-- Row 4 -->
             <button class="btn num" data-test="num" data-label="1" @click="handleNumber('1')">1</button>
             <button class="btn num" data-test="num" data-label="2" @click="handleNumber('2')">2</button>
             <button class="btn num" data-test="num" data-label="3" @click="handleNumber('3')">3</button>
-            <button class="btn op" data-test="op" data-label="+" @click="handleOp('+')">+</button>
+            <button class="btn op" data-test="op" data-label="+" aria-label="加" @click="handleOp('+')">+</button>
 
             <!-- Row 5 -->
             <button class="btn num" data-test="num" data-label="0" @click="handleNumber('0')">0</button>
-            <button class="btn num" data-test="decimal" data-label="." @click="handleDecimal()">.</button>
+            <button class="btn num" data-test="decimal" data-label="." aria-label="小數點" @click="handleDecimal()">.</button>
             <button
               class="btn"
               data-test="backspace"
               data-label="backspace"
+              aria-label="刪除"
               @click="handleBackspace()"
             >⌫</button>
             <button
               class="btn eq"
               data-test="equals"
               data-label="="
+              aria-label="等號"
               @click="calculateExpression()"
             >=</button>
           </div>
@@ -699,6 +726,16 @@ button:hover {
 
 button:active {
   transform: scale(0.94);
+}
+
+/* a11y: visible keyboard focus ring (Decision 4). :focus-visible means it shows
+   only on keyboard navigation, so the existing mouse/touch visuals are UNCHANGED.
+   Uses the existing MD3 --md-primary token; covers the focusable display div and
+   every button so keyboard users see where focus is. */
+.display:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--md-primary);
+  outline-offset: 2px;
 }
 
 /* Operators + AC: tonal secondary-container with on-secondary-container text. */
