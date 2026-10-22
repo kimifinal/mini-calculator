@@ -318,8 +318,87 @@ function onKey(ev: KeyboardEvent) {
   else if (key === 'Escape') reset();
 }
 
-onMounted(() => window.addEventListener('keydown', onKey));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
+// --- Copy-to-clipboard via LONG-PRESS on the main display ------------------
+// Entry point is a long press on the main display div ONLY. We add no new key
+// to the 5x4 keypad, no changes to '=', operators, ±, parentheses or history —
+// the ONLY code added for this feature is below plus the display div's
+// @pointer* wiring in the template. The arithmetic modules (src/lib/*) are
+// never touched.
+//
+// copyTimer: the pending long-press (setTimeout) handle.
+let copyTimer: ReturnType<typeof setTimeout> | undefined;
+// copiedFlashTimer: hides the "已複製" feedback once its window elapses.
+let copiedFlashTimer: ReturnType<typeof setTimeout> | undefined;
+// The preview line shows this text while a copy just succeeded; otherwise the
+// preview keeps rendering its live budget/preview (displayPreview) unchanged.
+const copiedFlash = ref('');
+// A copy that just succeeded, kept in sync with the display flash class.
+const justCopied = ref(false);
+
+function clearLongPress() {
+  if (copyTimer !== undefined) {
+    clearTimeout(copyTimer);
+    copyTimer = undefined;
+  }
+}
+
+/**
+ * Copy whatever the MAIN display currently shows. The main line reads the
+ * whole running expression and, after "=", the promoted result (the preview
+ * budget then empties), so this IS the just-computed value — e.g. compute
+ * 5+3=8, long-press, and "8" goes to the clipboard. Pure "Error" and an empty
+ * string are skipped; a genuine "0" is copyable. Uses
+ * navigator.clipboard.writeText with a silent failure so a denied/unavailable
+ * clipboard never crashes the app. The "已複製" feedback is shown as an ASYNCHRONOUS
+ * ref flip (in writeText's .then) so real Playwright/Chromium timers — which
+ * fire on their own macrotask cycle, not interleaved with the test thread —
+ * actually register the flash.
+ */
+function copyValue() {
+  const v = displayValue.value;
+  if (v === '' || v === 'Error') return;
+  try {
+    navigator.clipboard
+      ?.writeText(v)
+      ?.then(() => {
+        justCopied.value = true;
+        copiedFlash.value = '已複製';
+        if (copiedFlashTimer !== undefined) clearTimeout(copiedFlashTimer);
+        copiedFlashTimer = setTimeout(() => {
+          copiedFlash.value = '';
+          justCopied.value = false;
+          copiedFlashTimer = undefined;
+        }, 1200);
+      })
+      .catch(() => {
+        /* clipboard write failed (denied/unavailable): silently ignore */
+      });
+  } catch {
+    /* clipboard API not available (e.g. jsdom): no crash, no flash */
+  }
+}
+
+/**
+ * The long-press gesture. A SHORT tap/click must NOT copy: we start a 400ms
+ * timer on pointerdown and only fire copyValue when it elapses. Releasing early
+ * (pointerup/pointerleave/pointercancel) clears the timer, so a quick tap —
+ * which never reaches 400ms — copies nothing. @contextmenu.prevent stops the
+ * native menu; a plain click is left unwired (a natural no-op).
+ */
+function onDisplayPointerDown() {
+  clearLongPress();
+  copyTimer = setTimeout(copyValue, 400);
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKey);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey);
+  clearLongPress();
+  if (copiedFlashTimer !== undefined) clearTimeout(copiedFlashTimer);
+});
 </script>
 
 <template>
@@ -349,20 +428,35 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
         </svg>
       </button>
 
-      <!-- Display: always fixed at the top, never covered. -->
-      <div class="display" data-testid="display">{{ displayValue }}</div>
+      <!--
+        Display: always fixed at the top, never covered. It is ALSO the copy
+        entry point: a LONG-press on this div copies its current value to the
+        clipboard (400ms threshold). A short tap/click is a no-op. The "flash"
+        class (justCopied) briefly highlights the value as copy feedback.
+      -->
+      <div
+        class="display"
+        data-testid="display"
+        :class="{ 'display--copied': justCopied }"
+        @pointerdown="onDisplayPointerDown"
+        @pointerup="clearLongPress()"
+        @pointerleave="clearLongPress()"
+        @pointercancel="clearLongPress()"
+        @contextmenu.prevent
+      >{{ displayValue }}</div>
 
       <!--
         The "preview" line: ALWAYS rendered so its space is reserved (no layout
         jump when the budget appears/disappears). It shows the live result under
-        the expression (e.g. "18" under "9+9") and is empty otherwise — on an
-        error or right after "=", when the result is already the main display.
+        the expression (e.g. "18" under "9+9"), and briefly shows "已複製"
+        (copiedFlash) right after a successful copy. The element stays in the DOM
+        at all times — only its TEXT switches, so nothing is removed.
       -->
       <div
         class="display-preview"
         data-testid="display-preview"
       >
-        {{ displayPreview }}
+        {{ copiedFlash || displayPreview }}
       </div>
 
       <!--
@@ -535,6 +629,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   justify-content: flex-end;
   overflow: hidden;
   font-variant-numeric: tabular-nums;
+}
+
+/* Long-press feedback: briefly highlight the value as "copied". The class is
+   driven by the justCopied ref and removed after ~1.2s, so the highlight fades. */
+.display--copied {
+  color: var(--md-primary);
+  animation: display-copied 0.4s ease;
+}
+
+@keyframes display-copied {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Preview line: smaller result under the main expression. */
