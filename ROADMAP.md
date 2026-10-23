@@ -1,0 +1,78 @@
+# ROADMAP.md — mini-calculator
+
+功能藍圖。跟 `DESIGN.md`（視覺 SSOT）與 `spec.md`（行為 spec）互參，記錄「下一步做什麼」。
+**更新時間**：2026-10-23。
+
+## 常規（先看）
+
+- **Issue-first**：任何 bug / feature 先開 GitHub issue、再動 code。
+  `~/.hermes/scripts/github_issue_flow.py` 負責 `new` / `mark` / `resolve`。
+  修復早於 tracking issue 補建時，用一個空 commit 帶 `Closes #N` 建立雙向連結。
+- **SSOT**：`src/lib/`（`calculator.ts` / `expression.ts`）是核心，擴功能原則上加
+  **純函数到 lib + composable 到 `src/composables/`**，組件層只接 UI。
+- **四角色 pipeline**：Coder / Reviewer 走 `delegate_task` subagent，verdict 只取
+  `verify.py` 的 exit code（不信 subagent 自陳）。
+- **驗證**：每輪跑 `python3 ~/.hermes/scripts/verify.py typecheck build unit e2e`
+  六門全綠、且 `src/lib/` 0 檔未動。
+
+## 現況快照（2026-10-23，master 綠）
+
+核心運算全在 `src/lib/`：`parseExpression` / `isOperator` / `calculate` / `percentage`。
+
+| 項目 | 狀態 | ref |
+|---|---|---|
+| 四則 + 括號運算式 | ✅ | #1, #3(% 取餘) |
+| 變號 ± / 退格 ⌫ / AC | ✅ | #8, #10 |
+| 歷史面板（localStorage 持久、點回重用、全清） | ✅ | #13, #17 |
+| PWA：離線 + 可安裝 | ✅ | #15 |
+| 複製結果（長按 / 鍵盤，手機 PWA 友好） | ✅ | #25 |
+| 雙列顯示（運算式 + 即時結果，iOS 風格） | ✅ | #22 |
+| a11y（WAI-ARIA / 螢幕閱讀器 / 鍵盤 / focus-visible） | ✅ | #27 |
+| MD3 dark 視覺 | ✅ | #20, `DESIGN.md` |
+| 記憶鍵 M+ / M- / MR / MC | ⏳ open | **#14** |
+| SW autoUpdate（部署後自動更新，不卡舊版） | ✅ | #29 已關 |
+
+### 已知技術注意（已修，防回歸）
+- 手機長按複製要加 `user-select:none / -webkit-touch-callout:none`（headless e2e 假綠，
+  真機原生選取會搶跑）。護欄：`tests/e2e/copy.spec.ts` A8。見 skill `pwa-mobile-false-greens`。
+- vite-plugin-pwa 用 `registerType: 'autoUpdate'`（非 `workbox.updateStrategy`、非
+  `injectRegister:'autoUpdate'`，那兩個是錯的 key）。部署後確認 `sw.js` 含 `skipWaiting`。
+
+---
+
+## 待辦（按 實益 × 風險 排序）
+
+### A. 先收掉（已開 issue）
+| # | 項目 | 做法 | 難度 |
+|---|---|---|---|
+| **#14** | 記憶鍵 M+ / M- / MR / MC | 仿 `useHistory` 寫 `useMemory` composable + 純函数放 lib + localStorage；UI 4 鍵。 | 中 |
+
+> 建議先做 #14：你 issue 已開、與現有 history 架構同構、風險低。
+
+### B. 高實益 / 低風險（建議下一輪）
+1. **浮點精確度**：`2/3`、`0.1+0.2` 現在可能爆長/浮點醜數（計算機最常見的 bug 源）。
+   在 `src/lib/calculator.ts` 對結果做規整（`Number(x.toPrecision(12))` 或容差比對），
+   e2e 補 3–4 筆邊界。**最高風險 lowest-effort 的隱患，值得早做**。
+2. **科學運算鍵**：`x²` / `√` / `1/x` / `xʸ`（`%` 已有）。`lib.calculate` 加分支 + e2e。
+3. **主題切換（深/淺）**：現在 only MD3 dark。加 light 主題 + `prefers-color-scheme`
+   跟系統 + localStorage 記憶。純 CSS 變數切換、**不動 lib**。需更新 `DESIGN.md` 加 light token。
+4. **歷史面板增強**：現只有「點回重用 + 全清」。加 **匯出 CSV**、搜尋、時間戳。
+   對專業工作流實益高。
+
+### C. 體驗 / 專業感（加分項）
+5. **鍵盤輸入**：實機電腦打 `7*8=` 就能算（現在只認螢幕鍵 + 長按）。桌面 PWA 很有用，
+   也補 a11y 鍵盤尾巴。
+6. **動畫 / 過渡（MD3 motion）**：歷史面板、toast 的進出（現在瞬間）。
+7. **測試覆蓋儀表板**：`c8` coverage 報表進 CI，讓「哪條 lib 路徑沒測到」可見。
+8. **自訂主題色**：讓使用者選 accent + localStorage（#1 的延伸）。
+
+---
+
+## 建議執行順序
+`A(#14 記憶鍵)` → `B1 浮點精確度`（隱患）→ `B3 主題切換` → `B2 科學運算` → `B4 歷史匯出` → C 類。
+
+## 建議與文件的對應
+- 任何視覺變更 → 改 `DESIGN.md` token、再改 CSS（不 hard-code hex）。
+- 任何行為變更 → 改 `spec.md`、再改 `src/lib/`。
+- 新 feature → 開 issue（A/B/C 任一）→ 四角色 pipeline → `verify.py` 綠 → merge。
+- `spec.md` 仍寫 `glassmorphism`，但 `DESIGN.md` 已標移除——下次行為變更時一併校正 `spec.md`。
