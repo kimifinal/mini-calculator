@@ -656,6 +656,18 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   overflow: hidden;
   font-variant-numeric: tabular-nums;
+  /*
+   * Prevent native text selection on mobile touch devices. Without this,
+   * a 400+ ms long-press on the display value triggers the browser's built-in
+   * text selection (iOS shows "Copy / Share / Search" callout, Android shows
+   * the native selection toolbar) which emits pointercancel BEFORE our
+   * copyTimer fires — so copyValue() never runs and the custom copy path
+   * is silently bypassed. -webkit-touch-callout: none removes the callout
+   * and user-select: none prevents text selection on the display.
+   */
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Long-press feedback: briefly highlight the value as "copied". The class is

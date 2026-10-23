@@ -217,5 +217,63 @@ test('A7: long-press copies a genuine "0" (only Error/empty are skipped)', async
   await page.evaluate(() => new Promise((r) => setTimeout(r, 50)));
 
   const copied = await page.evaluate(() => (window as any).__copied as string[]);
-  expect(copied.pop()).toBe('0');
+  expect(copied.length).toBeGreaterThan(0);
+  expect(copied[copied.length - 1]).toBe('0');
+});
+
+// --- A8: REGRESSION GUARD — the display must block NATIVE text selection so a
+// --- real mobile long-press does NOT trigger the browser's "Copy/Share/Search"
+// --- callout. That callout emits pointercancel before our 400ms copyTimer fires,
+// --- silencing copyValue() — the EXACT bug that passed here in headless Chromium
+// --- (synthetic pointer events never fire the native text-selection path) yet
+// --- failed on a real phone. This test asserts the CSS that prevents it, so a
+// --- future change cannot silently reintroduce the regression.
+// ---
+// NOTE: `user-select: none` is the DECISIVE property — every modern engine AND
+// iOS Safari honor it to block text selection on the touch target, so we HARD
+// assert it. `-webkit-touch-callout` is an iOS-Safari-only property that the
+// CSSOM does NOT expose in Chromium, so we only SOFT-check it: if the built
+// stylesheet declares it, it must be none; absence (Chromium) is expected and
+// not a failure.
+test('A8: the display blocks native mobile text selection (no long-press callout)', async ({
+  page,
+}) => {
+  const guard = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="display"]') as HTMLElement;
+    const cs = getComputedStyle(el);
+    const userSelect = cs.getPropertyValue('user-select').trim();
+    // Scan rendered stylesheets for the callout rule (the iOS-only property is
+    // not reflected in getComputedStyle under Chromium; read the source).
+    let callout = '';
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules: CSSRuleList;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue; // cross-origin / blocked stylesheet
+      }
+      for (const rule of Array.from(rules)) {
+        const r = rule as CSSStyleRule;
+        if (r.selectorText && r.selectorText.includes('.display') && r.cssText) {
+          const m = r.cssText.match(/-webkit-touch-callout\s*:\s*(\w+)/i);
+          if (m) callout = m[1];
+        }
+      }
+    }
+    return { userSelect, callout };
+  });
+  console.log('A8 guard:', JSON.stringify(guard));
+  // Decisive, cross-engine guard: text is non-selectable on the display.
+  expect(
+    guard.userSelect,
+    `user-select must block selection (got ${guard.userSelect})`,
+  ).toBe('none');
+  // Soft guard: if the engine/stylesheet exposes the iOS callout property, it
+  // must be none. Absence under Chromium is expected — not a failure.
+  if (guard.callout) {
+    expect(
+      guard.callout.toLowerCase(),
+      `-webkit-touch-callout must be none when present (got "${guard.callout}")`,
+    ).toBe('none');
+  }
 });
