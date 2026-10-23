@@ -445,6 +445,17 @@ onBeforeUnmount(() => {
       </button>
 
       <!--
+        Copy-success toast: appears top-center of the calculator on a
+        successful long-press copy.  Separate from display-preview so it
+        does not interfere with the expression preview below.
+      -->
+      <div
+        class="copy-toast"
+        data-testid="copy-toast"
+        :class="{ 'copy-toast--visible': copiedFlash }"
+      >{{ copiedFlash }}</div>
+
+      <!--
         Display: always fixed at the top, never covered. It is ALSO the copy
         entry point: a LONG-press on this div copies its current value to the
         clipboard (400ms threshold). A short tap/click is a no-op. The "flash"
@@ -469,16 +480,13 @@ onBeforeUnmount(() => {
       <!--
         The "preview" line: ALWAYS rendered so its space is reserved (no layout
         jump when the budget appears/disappears). It shows the live result under
-        the expression (e.g. "18" under "9+9"), and briefly shows "已複製"
-        (copiedFlash) right after a successful copy. The element stays in the DOM
+        the expression (e.g. "18" under "9+9"). The element stays in the DOM
         at all times — only its TEXT switches, so nothing is removed.
       -->
       <div
         class="display-preview"
         data-testid="display-preview"
-      >
-        {{ copiedFlash || displayPreview }}
-      </div>
+      >{{ displayPreview }}</div>
 
       <!--
         The "stage" holds the keyboard and the history panel as overlapping
@@ -675,6 +683,37 @@ onBeforeUnmount(() => {
 .display--copied {
   color: var(--md-primary);
   animation: display-copied 0.4s ease;
+}
+
+/*
+ * Copy-success toast: top-center overlay of the calculator shell. It rides
+ * on the .calculator (position: relative) as an absolute layer above the
+ * display. Hidden by default (opacity:0, pointer-events:none) and toggled
+ * visible via .copy-toast--visible while copiedFlash is non-empty — this
+ * keeps it out of the layout flow so display-preview never jumps.
+ */
+.copy-toast {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  z-index: 20;
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 6px 16px;
+  border-radius: 999px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.copy-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 @keyframes display-copied {

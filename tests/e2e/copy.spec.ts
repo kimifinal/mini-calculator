@@ -4,8 +4,8 @@
  * Entry point (by design): a LONG press on the MAIN display div (data-testid=
  * "display"). It is NOT a new key — the 5x4 keypad is untouched. Press the main
  * line for >400ms and its current value is written to the clipboard; the small
- * preview line (data-testid="display-preview") briefly shows "已複製" as
- * feedback. A short tap/click must NOT copy.
+ * feedback. A short tap/click must NOT copy. The "已複製" feedback now lives in
+ * a SEPARATE top-center toast (data-testid="copy-toast"), not the preview line.
  *
  * The clipboard is mocked per context (navigator.clipboard.writeText records to
  * window.__copied and resolves), so the suite is deterministic and works
@@ -23,7 +23,7 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 
 const display = (page: Page) => page.getByTestId('display');
-const preview = (page: Page) => page.getByTestId('display-preview');
+const toast = (page: Page) => page.getByTestId('copy-toast');
 
 // Click an on-screen key by its data-label (same helper the main e2e uses), so
 // we can build a result (5 + 3 =) before copying it.
@@ -161,19 +161,23 @@ test('A3: long-press does NOT copy an "Error" display', async ({ page }) => {
   expect(copied).toEqual([]);
 });
 
-// --- A4: feedback "已複製" appears then fades -----------------------
-test('A4: after a copy the preview shows "已複製" then it fades out', async ({
+// --- A4: the copy toast (top-center) shows "已複製" then it fades out -------
+// NOTE: the "已複製" feedback is now a SEPARATE top-center toast
+// (data-testid="copy-toast"), NOT the preview line — so it doesn't collide
+// with the expression preview below. This test guards that placement.
+test('A4: after a copy the toast shows "已複製" then it fades out', async ({
   page,
 }) => {
   await computeEight(page);
   await longPressDisplay(page);
 
-  // Right after the copy, the feedback text is on the preview line.
-  await expect(preview(page)).toContainText('已複製');
+  // Right after the copy, the toast carries "已複製" and becomes visible.
+  await expect(toast(page)).toContainText('已複製');
+  await expect(toast(page)).toHaveClass(/copy-toast--visible/);
 
   // After the ~1.2s window it is gone (the component clears it at 1200ms).
   await page.waitForTimeout(1300);
-  await expect(preview(page)).not.toContainText('已複製');
+  await expect(toast(page)).not.toContainText('已複製');
 });
 
 // --- A6: long-press copy still works OFFLINE (PWA) -------------------
