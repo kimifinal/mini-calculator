@@ -24,7 +24,19 @@ export default defineConfig({
     // requires on a /<user>/<repo>/ sub-path. scope stays relative so the SW
     // controls exactly the deployed root, never a stray leading "/".
     VitePWA({
+      // injectRegister: 'auto' — inject <link rel="manifest"> + the SW
+      // registration script into index.html (a hand-added absolute /sw.js
+      // would 404 under the GitHub Pages sub-path).
       injectRegister: 'auto',
+      //
+      // registerType: 'autoUpdate' (was the default 'prompt') — when a new SW is
+      // deployed, the plugin injects a registration that fetches + activates the
+      // new SW in the background and reloads the page once, so users silently get
+      // the latest build on their next open. With 'prompt' the new SW is queued
+      // BEHIND an in-app update prompt users frequently miss, leaving them on the
+      // STALE build — the exact "user sees old UI / old copy-toast after a deploy"
+      // problem seen this session.
+      registerType: 'autoUpdate',
       manifest: {
         name: 'Mini Calculator',
         short_name: 'Calculator',
