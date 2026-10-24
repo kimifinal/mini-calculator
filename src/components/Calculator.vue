@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { percentage, type Operator } from '../lib/calculator';
 import { parseExpression } from '../lib/expression';
 import { useHistory } from '../composables/useHistory';
+import { useMemory } from '../composables/useMemory';
 
 // The component emits an event whenever a result is computed, so a parent
 // app / test harness can observe calculation outcomes.
@@ -41,6 +42,60 @@ function toggleHistory() {
 
 function closeHistory() {
   historyVisible.value = false;
+}
+
+// --- memory keys M+ / M- / MR / MC (UI-only; see src/composables/useMemory.ts) ---
+const {
+  addMem: addMemory,
+  subMem: subMemory,
+  recallMem: recallMemory,
+  clearMem: clearMemory,
+  isFolded,
+  toggleFold,
+} = useMemory();
+
+/**
+ * The numeric value currently on the display. The display is the whole running
+ * expression, so M+/M- evaluate it with the SAME SSOT parser (parseExpression)
+ * the calculator uses. A bare number or an unevaluated chain both collapse to a
+ * single number; a value that cannot evaluate (e.g. "Error" or empty)
+ * contributes 0 so a memory op never corrupts the stored value.
+ */
+function currentNumericValue(): number {
+  const v = displayValue.value;
+  if (v === 'Error' || v === '') return 0;
+  const r = parseExpression(v);
+  return typeof r === 'number' ? r : 0;
+}
+
+// M+ : mem += current display value. After accumulating, start a fresh number
+// (justEvaluated) so "5 M+ 10 M+" reads 5 then 10 (not "510"), mirroring MR.
+function handleMemPlus() {
+  addMemory(currentNumericValue());
+  justEvaluated.value = true;
+  hasError.value = false;
+}
+
+// M- : mem -= current display value (fresh number next, like M+).
+function handleMemMinus() {
+  subMemory(currentNumericValue());
+  justEvaluated.value = true;
+  hasError.value = false;
+}
+
+// MR : load the stored memory into the display, exactly like loadHistoryEntry —
+// set hasError=false + justEvaluated=true so the NEXT digit starts a fresh
+// expression instead of appending to the recalled value.
+function handleMemRecall() {
+  const n = recallMemory();
+  displayValue.value = String(n);
+  hasError.value = false;
+  justEvaluated.value = true;
+}
+
+// MC : clear the memory to 0.
+function handleMemClear() {
+  clearMemory();
 }
 
 /**
@@ -489,6 +544,39 @@ onBeforeUnmount(() => {
       >{{ displayPreview }}</div>
 
       <!--
+        Fold toggle (issue #14): a circular, icon-only chevron that expands/collapses
+        the memory row. It sits on its OWN row between the preview line and the
+        keyboard, left-aligned, so it never disturbs the folded keypad layout.
+        Folded is the default; the chevron points DOWN (rotate(0)) when folded and
+        rotates 180° (points UP) when expanded. aria-label + aria-expanded follow the
+        state; NO hint dot. The state is persisted (see useMemory).
+      -->
+      <div class="fold-row">
+        <button
+          class="fold-toggle"
+          data-testid="fold-toggle"
+          :class="{ 'fold-toggle--open': !isFolded }"
+          :aria-label="isFolded ? '展開記憶鍵' : '收合記憶鍵'"
+          :aria-expanded="!isFolded"
+          @click="toggleFold()"
+        >
+          <svg
+            class="chevron"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+
+      <!--
         The "stage" holds the keyboard and the history panel as overlapping
         absolutely-positioned layers of the same size. Opening history slides
         the keyboard down and fades it out while the panel slides up to take
@@ -500,6 +588,51 @@ onBeforeUnmount(() => {
           class="keyboard"
           :class="{ 'keyboard--hidden': historyVisible }"
         >
+          <!--
+            Memory row (issue #14): a 4-key cluster (M+ / M- / MR / MC) that slides
+            in ABOVE the keypad when the fold toggle is open. It lives inside the
+            keyboard so it is the same width; when folded it collapses to 0 height
+            via max-height, so the folded keypad layout is byte-identical to the
+            original. Keys use the MD3 primary-container tokens (purple, distinct
+            from the numbered keys).
+          -->
+          <div
+            class="memory-row"
+            data-testid="memory-row"
+            role="group"
+            aria-label="記憶鍵"
+            :class="{ 'memory-row--open': !isFolded }"
+          >
+            <button
+              class="btn mem"
+              data-test="mem-plus"
+              data-label="M+"
+              aria-label="加入記憶"
+              @click="handleMemPlus()"
+            >M+</button>
+            <button
+              class="btn mem"
+              data-test="mem-minus"
+              data-label="M-"
+              aria-label="從記憶減去"
+              @click="handleMemMinus()"
+            >M−</button>
+            <button
+              class="btn mem"
+              data-test="mem-recall"
+              data-label="MR"
+              aria-label="調出記憶"
+              @click="handleMemRecall()"
+            >MR</button>
+            <button
+              class="btn mem"
+              data-test="mem-clear"
+              data-label="MC"
+              aria-label="清除記憶"
+              @click="handleMemClear()"
+            >MC</button>
+          </div>
+
           <div class="buttons">
             <!-- Row 1 -->
             <button
@@ -744,6 +877,105 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+/* --- Fold toggle (issue #14): icon-only chevron on its own row ----------
+ * A circular, secondary (28px — smaller than the 40px history toggle =
+ * "secondary") button that expands/collapses the memory row. It rides in a
+ * left-aligned row between the preview line and the keyboard. The chevron
+ * points DOWN when folded and rotates 180° (points UP) when the row is open,
+ * animated with `transition: transform 0.25s ease`. */
+.fold-row {
+  display: flex;
+  justify-content: flex-start;
+  min-height: 0;
+  /* Breathing room below the chevron, matching the keypad's row gap (10px).
+     Without this the toggle sits flush (0px) against whatever is below it — the
+     keypad when folded, the memory row when expanded — like the screenshot where
+     the chevron hugged the AC key. */
+  margin-bottom: 10px;
+}
+
+.fold-toggle {
+  width: 28px;
+  height: 28px;
+  aspect-ratio: auto;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 0;
+  /* Tonal secondary tint derived from --md-primary (#d0bcff) at low alpha. */
+  background: rgba(208, 188, 255, 0.12);
+  color: var(--md-primary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease;
+}
+
+.fold-toggle:hover {
+  background: rgba(208, 188, 255, 0.22);
+}
+
+.chevron {
+  display: block;
+  color: var(--md-primary);
+  transform: rotate(0deg);
+  transition: transform 0.25s ease;
+}
+
+/* Expanded state: rotate the chevron 180° (points up). */
+.fold-toggle--open .chevron {
+  transform: rotate(180deg);
+}
+
+/* --- Memory row (issue #14): 4-key cluster that slides in above the keypad ---
+ * Collapsed by default (folded => hidden) and slides in via max-height + opacity
+ * when `.memory-row--open`. Collapsed => 0 height, so the folded keypad layout
+ * is identical to the original. The grid matches the keypad (4 cols, 10px gap). */
+.memory-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  /* Hidden when folded. Use `visibility:hidden` (not just opacity:0) so the 4
+     folded keys leave the tab order AND assistive tech — opacity:0 buttons stay
+     focusable. `visibility` flips AFTER the collapse finishes so the slide-out
+     still animates, and back to visible instantly on open. */
+  visibility: hidden;
+  transition: max-height 0.25s ease, opacity 0.25s ease,
+    visibility 0s linear 0.25s;
+}
+
+.memory-row--open {
+  /* The shell (`.calculator`) is a fixed `width:340px` `padding:16px`, so a square
+     `1fr` cell is 70×70 px and a single row of square keys is ~70px tall. The 96px
+     ceiling therefore never clips the keys and is not viewport-dependent (the
+     keyboard itself is fixed-size, so this is provable, not magic). Bump it only if
+     a second row is ever added.
+     margin-bottom:10px is the gap to the AC row below — it matches the keypad's
+     own row gap so the row reads as one uniform grid. (`.fold-row`'s margin is a
+     SEPARATE gap, above the chevron, so the two don't stack.) */
+  max-height: 96px;
+  opacity: 1;
+  margin-bottom: 10px;
+  visibility: visible;
+  transition: max-height 0.25s ease, opacity 0.25s ease, visibility 0s;
+}
+
+/* Memory keys: MD3 primary-container (purple) — distinct from the numbered keys
+ * (surface-container-highest) and operators (secondary-container). `.btn.mem`
+ * (two classes) out-specifies the bare `button` rule, so this wins cleanly. */
+.btn.mem {
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
 }
 
 /* Layout: 4 columns x 5 rows, all round buttons the same size. */

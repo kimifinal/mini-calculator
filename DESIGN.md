@@ -64,6 +64,41 @@ MD3 standard shadows on the shell and panel:
 | History panel | bg `--md-sc-highest`, radius 28, elevation shadow |
 | History selection | `rgba(208,188,255,.14)` bg + `1.5px` primary inset border |
 | Current-expression bar | bg `rgba(208,188,255,.10)`, value `--md-on-primary-container` |
+| Fold toggle (icon chevron) | 28px circle, bg `rgba(208,188,255,.12)` (hover `.22`), icon `--md-primary` stroke 2.2 |
+| Memory key (`M+ M- MR MC`) | bg `--md-primary-container`, text `--md-on-primary-container` (purple) |
+
+## Memory keys + fold toggle (issue #14)
+
+A foldable cluster of 4 memory keys sits ABOVE the keypad and is the ONLY
+visual change when *expanded*; when **folded** the keypad layout is identical to
+the baseline (zero change to existing keys/positions). State is persisted to
+`localStorage` (`calc-mem-v1` value, `calc-mem-fold-v1` fold), reloaded in the
+composable at setup — no flash. Logic lives in `src/composables/useMemory.ts`
+(the arithmetic SSOT `src/lib/*` is untouched).
+
+- **Fold toggle** — a circular, icon-only chevron on its own row (`.fold-row`)
+  *between* the preview line and the keyboard, **left-aligned**.
+  - Size **28px** (smaller than the 40px history toggle = "secondary"); it never
+    grows the folded layout.
+  - Background `rgba(208,188,255,.12)` (a tonal tint of `--md-primary`
+    `#d0bcff`); hover `.22`. Icon = `--md-primary`, stroke-width **2.2**.
+  - **Folded** (default): chevron points DOWN, `transform: rotate(0deg)`.
+    **Expanded**: chevron **rotates 180°** (points UP), `transition:
+    transform 0.25s ease`.
+  - `aria-label` follows state — `'展開記憶鍵'` (folded) / `'收合記憶鍵'`
+    (expanded); `aria-expanded` synced (`false` folded / `true` expanded).
+    **No hint dot** (dropped).
+- **Memory row** (`.memory-row`) — grid `repeat(4, 1fr)`, gap 10px (matches the
+  keypad). Slides in via `max-height` + `opacity`, **0.25s**. Collapsed (folded)
+  => 0 height / `opacity 0`, so the folded layout is unchanged.
+  - Keys **M+ / M- / MR / MC**, each `--md-primary-container` bg /
+    `--md-on-primary-container` text (purple, distinct from numbered keys and
+    operators).
+  - `data-label` exactly `M+`, `M-`, `MR`, `MC`; the toggle carries
+    `data-testid="fold-toggle"`.
+- **Semantics** — `M+`/`M-` add/subtract the *current display value* (evaluated
+  through the `parseExpression` SSOT); `MR` loads memory into the display like a
+  history tap (`justEvaluated=true`, fresh next digit); `MC` sets memory to 0.
 
 ## Do's and Don'ts
 
