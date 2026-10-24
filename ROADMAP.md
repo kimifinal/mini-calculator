@@ -1,7 +1,7 @@
 # ROADMAP.md — mini-calculator
 
 功能藍圖。跟 `DESIGN.md`（視覺 SSOT）與 `spec.md`（行為 spec）互參，記錄「下一步做什麼」。
-**更新時間**：2026-10-23。
+**更新時間**：2026-10-24（#14 merged at `53e0fd6`）。
 
 ## 常規（先看）
 
@@ -29,7 +29,7 @@
 | 雙列顯示（運算式 + 即時結果，iOS 風格） | ✅ | #22 |
 | a11y（WAI-ARIA / 螢幕閱讀器 / 鍵盤 / focus-visible） | ✅ | #27 |
 | MD3 dark 視覺 | ✅ | #20, `DESIGN.md` |
-| 記憶鍵 M+ / M- / MR / MC | ⏳ open | **#14** |
+| 記憶鍵 M+ / M- / MR / MC（摺疊鍵簇 + 持久化） | ✅ | #14, `useMemory.ts` |
 | SW autoUpdate（部署後自動更新，不卡舊版） | ✅ | #29 已關 |
 
 ### 已知技術注意（已修，防回歸）
@@ -42,17 +42,19 @@
 
 ## 待辦（按 實益 × 風險 排序）
 
-### A. 先收掉（已開 issue）
-| # | 項目 | 做法 | 難度 |
-|---|---|---|---|
-| **#14** | 記憶鍵 M+ / M- / MR / MC | 仿 `useHistory` 寫 `useMemory` composable + 純函数放 lib + localStorage；UI 4 鍵。 | 中 |
+### A. 先收掉（#14 已完成，見下）
+| # | 項目 | 狀態 |
+|---|---|---|
+| **#14** | 記憶鍵 M+ / M- / MR / MC | ✅ merged `53e0fd6`：`useMemory.ts` composable + 摺疊鍵簇 + localStorage（fold + value 各持久）；4 行為 + 展開/摺疊 e2e 全綠。 |
 
-> 建議先做 #14：你 issue 已開、與現有 history 架構同構、風險低。
+> 待補的只是 `pipeline/` 審查紀錄 + `scripts/` 量測腳本尚未進 repo（見末尾 A3：開 `chore/` PR 打包）。
 
 ### B. 高實益 / 低風險（建議下一輪）
-1. **浮點精確度**：`2/3`、`0.1+0.2` 現在可能爆長/浮點醜數（計算機最常見的 bug 源）。
-   在 `src/lib/calculator.ts` 對結果做規整（`Number(x.toPrecision(12))` 或容差比對），
-   e2e 補 3–4 筆邊界。**最高風險 lowest-effort 的隱患，值得早做**。
+1. **浮點精確度（已 largely 處理，補 e2e 護欄即可）**：`expression.ts:218` 已對結果做
+   `Math.round((x+EPSILON)*1e12)/1e12` 規整，所以 `0.1+0.2 → 0.3`（不爆長）—— 先前
+   「可能爆長」的說法部分過時。殘留只有：(a) `2/3 → 0.666666666667` 這類循環小數仍有 12 位
+   長尾，若要更整潔可加顯示端 `toPrecision`/`toFixed`；(b) **缺 e2e 邊界護欄**防回歸
+   （補 `0.1+0.2=0.3`、`2/3`、`1/3`、除零 等 3–4 筆）。**低成本，但已非「最高風險隱患」**。
 2. **科學運算鍵**：`x²` / `√` / `1/x` / `xʸ`（`%` 已有）。`lib.calculate` 加分支 + e2e。
 3. **主題切換（深/淺）**：現在 only MD3 dark。加 light 主題 + `prefers-color-scheme`
    跟系統 + localStorage 記憶。純 CSS 變數切換、**不動 lib**。需更新 `DESIGN.md` 加 light token。
@@ -66,10 +68,17 @@
 7. **測試覆蓋儀表板**：`c8` coverage 報表進 CI，讓「哪條 lib 路徑沒測到」可見。
 8. **自訂主題色**：讓使用者選 accent + localStorage（#1 的延伸）。
 
+### D. 收尾（無功能變更，建議最後做）
+- **A3 把審查/量測 artifact 打包進 repo**：`pipeline/*.md`（spec + review report + run log）
+  與 `scripts/measure_fold.mjs`、`shot_gapfix.mjs` 等仍為 untracked。開一個
+  `chore/pipeline-artifacts` 小 PR 收進 repo，不進 feature diff gate
+  （`verify.py` 的 diff/ssot 只看 tracked 變更）。
+
 ---
 
 ## 建議執行順序
-`A(#14 記憶鍵)` → `B1 浮點精確度`（隱患）→ `B3 主題切換` → `B2 科學運算` → `B4 歷史匯出` → C 類。
+`B1 浮點護欄`（已 largely 處理，補 e2e）→ `B3 主題切換` → `B2 科學運算` → `B4 歷史匯出` → C 類（體驗）→ D 收尾。
+**A 類 #14 已完成**（`53e0fd6`）。
 
 ## 建議與文件的對應
 - 任何視覺變更 → 改 `DESIGN.md` token、再改 CSS（不 hard-code hex）。
