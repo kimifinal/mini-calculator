@@ -47,15 +47,20 @@
 |---|---|---|
 | **#14** | 記憶鍵 M+ / M- / MR / MC | ✅ merged `53e0fd6`：`useMemory.ts` composable + 摺疊鍵簇 + localStorage（fold + value 各持久）；4 行為 + 展開/摺疊 e2e 全綠。 |
 
-> 待補的只是 `pipeline/` 審查紀錄 + `scripts/` 量測腳本尚未進 repo（見末尾 A3：開 `chore/` PR 打包）。
+> ✅ A3 已完成（PR #38 `decbcfd`）：`pipeline/` 審查紀錄 + `scripts/` 量測腳本已打包進 repo。
 
 ### B. 高實益 / 低風險
 1. **浮點精確度 e2e 護欄**：✅ merged（PR #35）`tests/e2e/float.spec.ts` 四筆護欄
    （`0.1+0.2=0.3`、`2/3`、`1/3`、除零）+ 負結果 / 百分比護欄。
 2. **科學運算鍵 `x²`/`√`/`1/x`/`xʸ`**：✅ merged（PR #37）4 鍵 `.sci-row` 置於 keypad
    上方，`^` 進 shunting-yard（右結合 `2^3^2=512`）；7 筆 e2e。
-3. **主題切換（深/淺）**：現在 only MD3 dark。加 light 主題 + `prefers-color-scheme`
-   跟系統 + localStorage 記憶。純 CSS 變數切換、**不動 lib**。需更新 `DESIGN.md` 加 light token。
+3. **主題切換（深/淺/跟系統）**：✅ merged（PR #40）`f61bee4`：`useTheme.ts`
+   三態 composable（light→dark→system）+ `localStorage('calc-theme-v1')` 記憶 +
+   `@media (prefers-color-scheme)` 跟 OS + `[data-theme]` 強制覆蓋層（specificity
+   0,1,0 壓過 0,0,1）；右上角 `.theme-toggle`（mirror 左上歷史鈕）；light token
+   grounded on M3 baseline light（`--md-primary #6750a4`/`--md-surface #fef7ff`）。
+   **不進 lib**（ssot 0 diff）；12 筆新 e2e（T1–T4 + 週期 + N1 resolved-color +
+   N3 forced>OS）。
 4. **歷史面板增強**：現只有「點回重用 + 全清」。加 **匯出 CSV**、搜尋、時間戳。
    對專業工作流實益高。
 
@@ -75,8 +80,10 @@
 ---
 
 ## 建議執行順序
-`B3 主題切換` → `B4 歷史匯出` → C 類（體驗）→ D 收尾。
-**已完成**：A 類 #14（`53e0fd6`）、B1 浮點護欄（PR #35）、B2 科學運算（PR #37）。
+`B3 主題切換` ✅ → 下一項 `B4 歷史匯出（CSV/搜尋/時間戳）` → C 類（體驗）→
+（自訂主題色 #8 可當 B3 延伸）。
+**已完成**：A 類 #14（`53e0fd6`）、A3 pipeline artifact（PR #38 `decbcfd`）、
+B1 浮點護欄（PR #35）、B2 科學運算（PR #37）、**B3 主題切換（PR #40 `f61bee4`）**。
 
 ## 建議與文件的對應
 - 任何視覺變更 → 改 `DESIGN.md` token、再改 CSS（不 hard-code hex）。
