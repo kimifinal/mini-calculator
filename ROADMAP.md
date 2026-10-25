@@ -67,7 +67,10 @@
 ### C. 體驗 / 專業感（加分項）
 5. **鍵盤輸入**：實機電腦打 `7*8=` 就能算（現在只認螢幕鍵 + 長按）。桌面 PWA 很有用，
    也補 a11y 鍵盤尾巴。
-6. **動畫 / 過渡（MD3 motion）**：歷史面板、toast 的進出（現在瞬間）。
+6. **動畫 / 過渡（MD3 motion）**：✅ 動畫其實早已存在（`panel-in` 0.3s 等，
+   `_motion_probe` 實測 opacity 0→0.97 真跑）；原「現在瞬間」為陳舊描述。真正補的是
+   **`prefers-reduced-motion` a11y 護欄**（#51，`App.vue` cascade-zero + M1/M2 e2e）——
+   OS「減少動態」時動畫解析 0s。
 7. **測試覆蓋儀表板**：`c8` coverage 報表進 CI，讓「哪條 lib 路徑沒測到」可見。
 8. **自訂主題色**：讓使用者選 accent + localStorage（#1 的延伸）。
 
