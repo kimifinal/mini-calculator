@@ -35,6 +35,53 @@ hero; buttons recede.
 | `--md-sc-high` | `#2b2930` | elevated controls / clear pill |
 | `--md-sc-highest` | `#36343b` | number keys + history panel bg |
 
+### Light theme (M3 baseline light scheme, B3 / #39)
+
+The dark values above are the frozen DEFAULT (preserved for existing behaviour
+and e2e). Light is layered on top in `src/App.vue`: a
+`@media (prefers-color-scheme: light)` block follows the OS, and two higher-
+specificity `[data-theme="light"]` / `[data-theme="dark"]` attribute layers let
+the JS toggle override the system choice. `src/lib/` is untouched. The toggle
+button cycles `light → dark → system` and persists to
+`localStorage('calc-theme-v1')`; `system` removes the attribute (follow OS).
+
+| Token | Light hex | Role |
+|---|---|---|
+| `--md-primary` | `#6750a4` | Accent (equals focus, chevron, selection) |
+| `--md-on-primary` | `#ffffff` | Text/icon on primary |
+| `--md-primary-container` | `#eaddff` | `=` filled button bg |
+| `--md-on-primary-container` | `#21005d` | `=` button text |
+| `--md-secondary` | `#625b71` | secondary |
+| `--md-on-secondary` | `#ffffff` | Text/icon on secondary |
+| `--md-secondary-container` | `#e8def8` | operator (`+ − × ÷ % ± ( )`) bg |
+| `--md-on-secondary-container` | `#1d192b` | operator button text |
+| `--md-tertiary` | `#7d5260` | tertiary |
+| `--md-on-tertiary` | `#ffffff` | Text/icon on tertiary |
+| `--md-error` | `#b3261e` | error |
+| `--md-on-error` | `#ffffff` | Text/icon on error |
+| `--md-error-container` | `#f9dedc` | `AC` destructive button bg |
+| `--md-on-error-container` | `#410e0b` | `AC` button text |
+| `--md-surface` | `#fef7ff` | base surface |
+| `--md-on-surface` | `#1d1b20` | primary text / number key text |
+| `--md-surface-variant` | `#e7e0ec` | dividers |
+| `--md-on-surface-variant` | `#49454f` | secondary text / labels |
+| `--md-outline` | `#79747e` | outline |
+| `--md-outline-variant` | `#cac4d0` | subtle dividers |
+| `--md-sc-lowest` | `#ffffff` | page backdrop (`body`) |
+| `--md-sc-low` | `#f7f2fa` | calculator shell bg |
+| `--md-sc` | `#f3edf7` | — |
+| `--md-sc-high` | `#ece6f0` | elevated controls / clear pill |
+| `--md-sc-highest` | `#e6e0e9` | number keys + history panel bg |
+| `--md-sc-bright` | `#fef7ff` | sc-bright |
+
+**Theme toggle (issue B3 / #39)** — a circular MD3 icon button in the shell's
+**top-right** corner, mirroring the top-left clock (`history-toggle`). It
+`data-testid="theme-toggle"` + `data-label="theme"`; the glyph
+(`☀` light / `☾` dark / `A` system) shows the *current* mode and the
+`aria-label` names the *next* action (`'切換為淺色'` / `'切換為深色'` /
+`'跟隨系統主題'`, zh-TW). Logic lives in `src/composables/useTheme.ts` (SSOT
+`src/lib/*` untouched).
+
 ## Typography
 
 Family: `Roboto / Google Sans` (system fallback). Display: 54px weight 300,

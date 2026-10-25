@@ -4,6 +4,7 @@ import { percentage, type Operator } from '../lib/calculator';
 import { parseExpression } from '../lib/expression';
 import { useHistory } from '../composables/useHistory';
 import { useMemory } from '../composables/useMemory';
+import { useTheme } from '../composables/useTheme';
 
 // The component emits an event whenever a result is computed, so a parent
 // app / test harness can observe calculation outcomes.
@@ -35,6 +36,13 @@ const { entries: historyEntries, record: recordHistory, clear: clearHistory } =
   useHistory();
 // The history panel is hidden by default and toggled by its button.
 const historyVisible = ref(false);
+
+// --- Theme switch: light -> dark -> system (issue B3 / #39) ----------------
+// Pure CSS-variable flip (see useTheme + the App.vue light layers). It never
+// touches src/lib/*. The button cycles the 3-state mode, persists it to
+// localStorage, and reflects it on <html data-theme>.
+const { mode: themeMode, cycle: cycleTheme, ariaLabel: themeAriaLabel } =
+  useTheme();
 
 function toggleHistory() {
   historyVisible.value = !historyVisible.value;
@@ -563,6 +571,22 @@ onBeforeUnmount(() => {
           <path d="M12 7v5l3 2" />
         </svg>
       </button>
+
+      <!--
+        Theme toggle, top-right (mirrors the top-left history-toggle). A circular
+        icon button cycling light -> dark -> system (B3 / #39). The glyph shows the
+        CURRENT mode; the aria-label names the NEXT action (from useTheme). The
+        choice is persisted to localStorage('calc-theme-v1') and applied as
+        document.documentElement.dataset.theme — a pure CSS-variable flip that does
+        not touch src/lib/*.
+      -->
+      <button
+        class="theme-toggle"
+        data-testid="theme-toggle"
+        data-label="theme"
+        @click="cycleTheme()"
+        :aria-label="themeAriaLabel"
+      >{{ themeMode === 'light' ? '☀' : themeMode === 'dark' ? '☾' : 'A' }}</button>
 
       <!--
         Copy-success toast: appears top-center of the calculator on a
@@ -1200,6 +1224,39 @@ button[data-label="( )"] {
 
 .history-icon {
   display: block;
+}
+
+/* --- Theme toggle, top-right (mirror of the top-left .history-toggle) ---
+ * A circular MD3 icon button that cycles light -> dark -> system. It reuses the
+ * exact tonal look of .history-toggle but rides the shell's top-RIGHT corner so
+ * the two toggles sit symmetrically. The glyph (☀ / ☾ / A) reflects the CURRENT
+ * mode; the aria-label names the NEXT action (set on the element). */
+.theme-toggle {
+  position: absolute;
+  /* Mirror of .history-toggle's top:16px, but right-aligned in the shell pad. */
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  aspect-ratio: auto;
+  border-radius: 50%;
+  padding: 0;
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 30;
+  /* The glyph carries the state icon; reset the keypad's big base font. */
+  font-size: 1.1rem;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--md-sc-high);
 }
 
 /* --- Stage: the keyboard sits in normal flow and defines the stage's height
