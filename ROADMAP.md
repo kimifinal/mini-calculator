@@ -69,9 +69,12 @@
    `0–9 / . / + - * / / % / ^ / ( ) / Enter(=) / Backspace / Escape`，並由
    `tests/e2e/keyboard.spec.ts`（K1–K8）鎖定（issue #47）。原「只認螢幕鍵+長按」為
    陳舊描述——鍵盤輸入早已支援，缺口只是無 e2e 護欄，#47 補上。補 a11y 鍵盤尾巴。
-6. **動畫 / 過渡（MD3 motion）**：歷史面板、toast 的進出（現在瞬間）。
-7. **測試覆蓋儀表板**：`c8` coverage 報表進 CI，讓「哪條 lib 路徑沒測到」可見。
-8. **自訂主題色**：讓使用者選 accent + localStorage（#1 的延伸）。
+6. **動畫 / 過渡（MD3 motion）**：✅ 動畫其實早已存在（`panel-in` 0.3s 等，
+   `_motion_probe` 實測 opacity 0→0.97 真跑）；原「現在瞬間」為陳舊描述。真正補的是
+   **`prefers-reduced-motion` a11y 護欄**（#51，`App.vue` cascade-zero + M1/M2 e2e）——
+   OS「減少動態」時動畫解析 0s。
+7. **測試覆蓋儀表板**：✅ v8 coverage 進 CI、baseline lib 94.9 % / 全 80.7%（#49, PR #50）。
+8. **自訂 accent 色**：⏳ 暫緩（#53 / issue open）；M3 調色盤 + localStorage 待設計確認後實做。
 
 ### D. 收尾（無功能變更，建議最後做）
 - **A3 把審查/量測 artifact 打包進 repo**：`pipeline/*.md`（spec + review report + run log）

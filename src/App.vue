@@ -174,4 +174,25 @@ body {
   /* MD3 surface-container-lowest backdrop for the elevated shell. */
   background: var(--md-sc-lowest);
 }
+
+/*
+ * C6 / #51 — prefers-reduced-motion guard (MD3 motion a11y). The app's motion
+ * (history-panel slide/fade, copy-toast, memory-row, fold chevron) is real CSS
+ * transitions + keyframe animations, so honoring the OS "reduce motion" setting
+ * is what completes "MD3 motion". A global cascade-zeroing block is chosen so
+ * every current AND future transition/animation is covered (the per-element rule
+ * form would have to be remembered for each new animation). `!important` so the
+ * guard wins over element-level transitions; durations zero + delays zero. This
+ * is a pure additive global guard and changes no normal-motion behaviour.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
 </style>
