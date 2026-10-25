@@ -548,45 +548,56 @@ onBeforeUnmount(() => {
 <template>
   <div class="calculator-container">
     <div class="calculator" data-testid="calculator">
-      <!-- Clock icon toggle, top-left corner (iOS style). -->
-      <button
-        class="history-toggle"
-        data-test="history-toggle"
-        data-label="history"
-        @click="toggleHistory()"
-        :aria-label="historyVisible ? '關閉歷史' : '打開歷史'"
-      >
-        <svg
-          class="history-icon"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 2" />
-        </svg>
-      </button>
-
       <!--
-        Theme toggle, top-right (mirrors the top-left history-toggle). A circular
-        icon button cycling light -> dark -> system (B3 / #39). The glyph shows the
-        CURRENT mode; the aria-label names the NEXT action (from useTheme). The
-        choice is persisted to localStorage('calc-theme-v1') and applied as
-        document.documentElement.dataset.theme — a pure CSS-variable flip that does
-        not touch src/lib/*.
+        Top toggle row: the clock (history) toggle on the LEFT and the theme
+        toggle on the RIGHT, in a single in-flow row (NOT absolute overlays).
+        Sitting in flow means the two toggles occupy their own band and the
+        display that follows naturally sits BELOW them — fixing the B3 bug where
+        the absolute-positioned theme toggle (top-right) overlapped the right-
+        aligned display text. data-testids/attributes are unchanged so existing
+        e2e keep passing. (issue #43)
       -->
-      <button
-        class="theme-toggle"
-        data-testid="theme-toggle"
-        data-label="theme"
-        @click="cycleTheme()"
-        :aria-label="themeAriaLabel"
-      >{{ themeMode === 'light' ? '☀' : themeMode === 'dark' ? '☾' : 'A' }}</button>
+      <div class="top-row">
+        <button
+          class="history-toggle"
+          data-test="history-toggle"
+          data-label="history"
+          @click="toggleHistory()"
+          :aria-label="historyVisible ? '關閉歷史' : '打開歷史'"
+        >
+          <svg
+            class="history-icon"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </button>
+
+        <!--
+          Theme toggle, right of the row (mirrors the left history-toggle). A
+          circular icon button cycling light -> dark -> system (B3 / #39). The
+          glyph shows the CURRENT mode; the aria-label names the NEXT action
+          (from useTheme). The choice is persisted to localStorage('calc-theme-v1')
+          and applied as document.documentElement.dataset.theme — a pure CSS-
+          variable flip that does not touch src/lib/*.
+        -->
+        <button
+          class="theme-toggle"
+          data-testid="theme-toggle"
+          data-label="theme"
+          @click="cycleTheme()"
+          :aria-label="themeAriaLabel"
+          >{{ themeMode === 'light' ? '☀' : themeMode === 'dark' ? '☾' : 'A' }}</button
+        >
+      </div>
 
       <!--
         Copy-success toast: appears top-center of the calculator on a
@@ -1196,13 +1207,28 @@ button[data-label="( )"] {
   font-size: 1.35rem;
 }
 
-/* --- Clock icon toggle, top-left (MD3 tonal icon button) --- */
+/* --- Top toggle row ----------------------------------------------------- */
+/*
+ * In-flow row holding the two top toggles: history (left) + theme (right).
+ * `space-between` pushes them to the shell's corners; `margin-bottom` gives
+ * the display that follows its own space so the toggle band never touches it.
+ * This is the fix for issue #43 (the absolute-positioned theme toggle used to
+ * overlap the display's top band).
+ */
+.top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* Gap to the display below — matches the keypad's 10px row gap so the shell
+     reads as uniform. (Fold/memory rows also use 10px.) */
+  margin-bottom: 10px;
+}
+
+/* --- Clock icon toggle, left side of the top row (MD3 tonal icon button) ---
+ * In-flow inside .top-row (NOT absolute) so the display that follows never
+ * underlaps the toggle band. (issue #43) */
 .history-toggle {
-  position: absolute;
-  /* Sit inside the shell padding so it aligns with the display row,
-     not jammed in the corner. */
-  top: 16px;
-  left: 16px;
+  /* In-flow; .top-row's flex space-between puts it at the left. */
   width: 40px;
   height: 40px;
   aspect-ratio: auto;
@@ -1226,16 +1252,14 @@ button[data-label="( )"] {
   display: block;
 }
 
-/* --- Theme toggle, top-right (mirror of the top-left .history-toggle) ---
- * A circular MD3 icon button that cycles light -> dark -> system. It reuses the
- * exact tonal look of .history-toggle but rides the shell's top-RIGHT corner so
- * the two toggles sit symmetrically. The glyph (☀ / ☾ / A) reflects the CURRENT
- * mode; the aria-label names the NEXT action (set on the element). */
+/* --- Theme toggle, right side of the top row (mirror of the left
+ * .history-toggle) --- A circular MD3 icon button that cycles light -> dark ->
+ * system. It reuses the exact tonal look of .history-toggle but sits at the
+ * right of .top-row so the two toggles sit symmetrically. The glyph
+ * (☀ / ☾ / A) reflects the CURRENT mode; the aria-label names the NEXT action
+ * (set on the element). In-flow so the display never underlaps it. (issue #43) */
 .theme-toggle {
-  position: absolute;
-  /* Mirror of .history-toggle's top:16px, but right-aligned in the shell pad. */
-  top: 16px;
-  right: 16px;
+  /* In-flow; .top-row's flex space-between puts it at the right. */
   width: 40px;
   height: 40px;
   aspect-ratio: auto;

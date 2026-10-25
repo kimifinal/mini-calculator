@@ -143,3 +143,19 @@ test('N3: forced dark beats OS prefers-color-scheme=light', async ({ page }) => 
   expect(await themeAttr(page)).toBe('dark');
   expect(await primaryOf(page)).toBe('#d0bcff'); // dark 贏過 OS light
 });
+
+// --- A1 (regression guard, issue #43) -------------------------------------
+// The theme toggle (top-right) must NOT overlap the display band below it: the
+// toggle's bottom edge must sit ABOVE the display's top edge. This is the
+// geometry guard for the bug where the absolute-positioned theme toggle rode on
+// the display's top band (display text is right-aligned, so the right toggle
+// covered it). Headless Chromium renders the toggle in-flow above the display
+// after the .top-row fix, so toggle.bottom < display.top must hold.
+test('A1: theme toggle does not overlap the display band', async ({ page }) => {
+  const { toggleBottom, displayTop } = await page.evaluate(() => {
+    const t = document.querySelector('.theme-toggle')?.getBoundingClientRect();
+    const d = document.querySelector('.display')?.getBoundingClientRect();
+    return { toggleBottom: t?.bottom ?? 0, displayTop: d?.top ?? 0 };
+  });
+  expect(toggleBottom).toBeLessThan(displayTop);
+});
