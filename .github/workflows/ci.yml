@@ -32,6 +32,20 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      # C7 (#49): report test coverage (c8 / v8). Report-only — NO threshold
+      # gate yet, so it can't break the build. The point is to make "which
+      # src/lib/ path a test never reached" visible; a numeric gate is a
+      # separate, later C8+ decision once real baseline numbers are visible.
+      - name: Coverage report
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: warn
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
