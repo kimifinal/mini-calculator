@@ -18,18 +18,24 @@ const PRECEDENCE: Record<string, number> = {
   '-': 1,
   '*': 2,
   '/': 2,
+  // '^' (xʸ) is right-associative and binds tighter than * / so 2^3^2 =
+  // 2^(3^2). It sits just below the unary tier (UNARY_PRECEDENCE = 3), which
+  // keeps a leading unary minus the tightest binding token.
+  '^': 4,
 };
 
 type Token =
   | { kind: 'num'; value: number }
-  | { kind: 'op'; value: '+' | '-' | '*' | '/' }
+  | { kind: 'op'; value: '+' | '-' | '*' | '/' | '^' }
   | { kind: 'unary'; value: '-' | '+' }
   | { kind: 'paren'; open: boolean };
 
-// Unary operators bind tighter than their binary neighbours.
+// Unary operators bind tighter than their binary neighbours. The power
+// operator '^' (PRECEDENCE 4) is right-associative so chained powers group
+// to the right; everything else left-assoc stays at the binary tiers below it.
 const UNARY_PRECEDENCE = 3;
 
-const OPERATORS = new Set(['+', '-', '*', '/']);
+const OPERATORS = new Set(['+', '-', '*', '/', '^']);
 
 /** Tokenise a raw expression string. Returns [] if malformed. */
 function tokenize(input: string): Token[] {
@@ -85,7 +91,7 @@ function tokenize(input: string): Token[] {
         continue;
       }
 
-      tokens.push({ kind: 'op', value: c as '+' | '-' | '*' | '/' });
+      tokens.push({ kind: 'op', value: c as '+' | '-' | '*' | '/' | '^' });
       i++;
       continue;
     }
@@ -131,7 +137,14 @@ function toRPN(tokens: Token[]): Token[] | null {
     // considers the precedence of WHATEVER is on top (op or unary).
     const currentPrec =
       t.kind === 'unary' ? UNARY_PRECEDENCE : PRECEDENCE[t.value];
-    const currentLeftAssoc = t.kind === 'op';
+    // Binary operators are left-associative EXCEPT '^' (power), which is
+    // right-associative. With the pop rule
+    //   pop = topPrec > curPrec || (topPrec === curPrec && leftAssoc)
+    // a right-associative token (leftAssoc false) only pops a *strictly
+    // higher* precedence top — so a second '^' (prec 4) leaves the first '^'
+    // (prec 4) on the stack and pushes above it: 3^2 is built first, giving
+    // 2^(3^2) = 512 for "2^3^2".
+    const currentLeftAssoc = t.kind === 'op' && t.value !== '^';
 
     while (ops.length > 0) {
       const top = ops[ops.length - 1];
@@ -204,6 +217,11 @@ function evalRPN(rpn: Token[]): CalcResult {
         case '/':
           if (b === 0) return 'Error';
           r = a / b;
+          break;
+        case '^':
+          // Power: pops b (base) then a (exponent). RPN [2,3,^] -> a=2, b=3
+          // -> 2^3 = 8. Right-associativity lives in toRPN, not here.
+          r = Math.pow(a, b);
           break;
         default:
           return 'Error';
