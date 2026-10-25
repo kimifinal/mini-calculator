@@ -4,7 +4,7 @@
 ## 技術棧
 - Framework: Vue.js 3 (Composition API, TypeScript)
 - Build: Vite + Vitest (unit) + Playwright (e2e)
-- Styling: CSS3 (glassmorphism)
+- Styling: CSS3 (Material Design 3, solid tonal surfaces + elevation; no glass / gradients — see `DESIGN.md`)
 
 ## 組件架構
 - `Calculator.vue`: 核心組件。

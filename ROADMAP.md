@@ -89,4 +89,5 @@ B1 浮點護欄（PR #35）、B2 科學運算（PR #37）、**B3 主題切換（
 - 任何視覺變更 → 改 `DESIGN.md` token、再改 CSS（不 hard-code hex）。
 - 任何行為變更 → 改 `spec.md`、再改 `src/lib/`。
 - 新 feature → 開 issue（A/B/C 任一）→ 四角色 pipeline → `verify.py` 綠 → merge。
-- `spec.md` 仍寫 `glassmorphism`，但 `DESIGN.md` 已標移除——下次行為變更時一併校正 `spec.md`。
+- ~~`spec.md` 仍寫 `glassmorphism`，但 `DESIGN.md` 已標移除——下次行為變更時一併校正 `spec.md`。~~
+  ✅ 已校正（#45）：`spec.md` styling 行同步為 MD3 solid tonal（no glass/gradients）。
