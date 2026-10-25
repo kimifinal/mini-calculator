@@ -94,5 +94,26 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['tests/unit/setup.ts'],
     include: ['tests/unit/**/*.{test,spec}.ts'],
+    // C7 / #49: test-coverage visibility (c8 / v8). The point is to make
+    // "which src/lib/ path a test never reached" visible, not to set a gate —
+    // so thresholds are OFF (a report-only run can't break the build). The
+    // coverage-v8 provider is aligned to the same vitest major (2.x), checked
+    // at install time.
+    coverage: {
+      provider: 'v8',
+      // Report to the console AND a json/html tree for later CI upload.
+      reporter: ['text', 'text-summary', 'json-summary', 'html'],
+      reportsDirectory: './coverage',
+      // Focus on the logic SSOT (calculator.ts / expression.ts) + composables
+      // — that is what "untested path" most matters for.
+      include: [
+        'src/lib/**',
+        'src/composables/**',
+        'src/components/Calculator.vue',
+      ],
+      exclude: ['**/*.d.ts', '**/*.test.ts', '**/*.spec.ts'],
+      // No threshold: report-only (a gate is a C8+ decision, needs the first
+      // real numbers anyway and would otherwise turn the build red).
+    },
   },
 });

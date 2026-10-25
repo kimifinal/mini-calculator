@@ -11,6 +11,9 @@ playwright-report/
 test-results/
 blob-report/
 
+# C7 (#49) test-coverage report (regenerated in CI; not committed)
+coverage/
+
 # logs
 npm-debug.log*
 yarn-debug.log*
