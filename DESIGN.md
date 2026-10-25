@@ -66,6 +66,7 @@ MD3 standard shadows on the shell and panel:
 | Current-expression bar | bg `rgba(208,188,255,.10)`, value `--md-on-primary-container` |
 | Fold toggle (icon chevron) | 28px circle, bg `rgba(208,188,255,.12)` (hover `.22`), icon `--md-primary` stroke 2.2 |
 | Memory key (`M+ M- MR MC`) | bg `--md-primary-container`, text `--md-on-primary-container` (purple) |
+| Science key (`x² √ 1/x xʸ`) | bg `--md-secondary-container`, text `--md-on-secondary-container`, radius 26 |
 
 ## Memory keys + fold toggle (issue #14)
 
@@ -100,6 +101,24 @@ composable at setup — no flash. Logic lives in `src/composables/useMemory.ts`
   through the `parseExpression` SSOT); `MR` loads memory into the display like a
   history tap (`justEvaluated=true`, fresh next digit); `MC` sets memory to 0.
 
+## Science keys (issue #36 / B2)
+
+A permanent 4-key row `x² √ 1/x xʸ` sits **above** the keypad (same width/grid
+as the keypad, `--md-secondary-container` bg / `--md-on-secondary-container`
+text), so folding or the existing 21-key layout stay byte-identical. The three
+unary ops **apply immediately** to the current number on the display — no
+trailing `=` needed — mirroring `%`: each result is round-tripped through the
+same `Math.round((x + Number.EPSILON) * 1e12) / 1e12` guard the main `=` path
+uses, latching `justEvaluated=true` so the next digit (and any stray `=`) starts
+fresh. A domain error latches the display to `Error` instead: `√` of a negative
+radicand and `1/x` of `0`. `xʸ` does **not** evaluate — it **appends the
+RIGHT-ASSOCIATIVE binary power operator `^`** into the expression string. The
+shunting-yard parser (`src/lib/expression.ts`) treats `^` as right-associative
+with precedence above `* /` (4, just below the unary tier 3), so `2^3^2` groups
+as `2^(3^2) = 512`, not `(2^3)^2 = 64`. `^` flows through `calculate()`
+(`Math.pow`) and the parser's `evalRPN`, so the whole expression — including
+mixed `+ − × ÷ ^` and parentheses — still evaluates on `=`.
+
 ## Do's and Don'ts
 
 - Do reference `--md-*` tokens; don't hard-code hex in component CSS.
@@ -108,9 +127,10 @@ composable at setup — no flash. Logic lives in `src/composables/useMemory.ts`
 - The `AC` red is intentional (MD3 destructive convention) — don't silently
   recolor without a confirmed design change.
 
-## Layout (real, 21 keys, 6 rows × 4 cols)
+## Layout (real, 25 keys — science row + 21-key, 7 rows × 4 cols)
 
 ```
+x²   √    1/x   xʸ
 AC   ±    ( )   %
 ÷    7    8    9
 ×    4    5    6

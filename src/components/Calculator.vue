@@ -115,9 +115,9 @@ const displayPreview = computed(() => {
   // Trim any dangling trailing operator (e.g. "9+9+" right after a second "+")
   // and evaluate the last *valid* fragment, so the preview stays STICKY instead
   // of vanishing the moment an operator is appended. "9+9+" -> "9+9" -> 18.
-  const trimmed = expr.replace(/[+\-*/]+$/, '');
+  const trimmed = expr.replace(/[+\-*/^]+$/, '');
   // A lone number (or empty) has no budget to show under it.
-  if (!/[+\-*/]/.test(trimmed)) return '';
+  if (!/[+\-*/^]/.test(trimmed)) return '';
 
   try {
     const r = parseExpression(trimmed);
@@ -231,6 +231,70 @@ function handlePercentage() {
   justEvaluated.value = true;
 }
 
+// --- Science operations (issue #36 / B2) -----------------------------------
+// The three unary ops (x² √ 1/x) apply immediately to the CURRENT bare number
+// on the display — exactly like '%' — rounding through the same 1e12 guard the
+// main '=' path uses, and latching justEvaluated=true so the next digit (and a
+// stray '=') behave like a fresh result. A domain error (√ of a negative, 1/x of
+// 0) latches the display to 'Error'. xʸ appends the power operator instead.
+
+function handleSquare() {
+  if (hasError.value) return;
+  const n = parseFloat(displayValue.value) || 0;
+  displayValue.value = String(Math.round((n * n + Number.EPSILON) * 1e12) / 1e12);
+  justEvaluated.value = true;
+  hasError.value = false;
+}
+
+function handleSqrtOp() {
+  if (hasError.value) return;
+  const n = parseFloat(displayValue.value);
+  if (Number.isNaN(n)) {
+    displayValue.value = '0';
+    hasError.value = false;
+    justEvaluated.value = false;
+    return;
+  }
+  if (n < 0) {
+    displayValue.value = 'Error';
+    hasError.value = true;
+    return;
+  }
+  displayValue.value = String(
+    Math.round((Math.sqrt(n) + Number.EPSILON) * 1e12) / 1e12,
+  );
+  justEvaluated.value = true;
+  hasError.value = false;
+}
+
+function handleReciprocal() {
+  if (hasError.value) return;
+  const n = parseFloat(displayValue.value);
+  if (n === 0 || Number.isNaN(n)) {
+    displayValue.value = 'Error';
+    hasError.value = true;
+    return;
+  }
+  displayValue.value = String(Math.round((1 / n + Number.EPSILON) * 1e12) / 1e12);
+  justEvaluated.value = true;
+  hasError.value = false;
+}
+
+// xʸ appends the RIGHT-ASSOCIATIVE power operator '^'. It mirrors handleOp,
+// replacing a trailing operator so we never get a malformed "5 +^"; otherwise it
+// just appends. The shunting-yard parser (src/lib/expression.ts) treats '^' as
+// right-associative, so 2^3^2 groups as 2^(3^2) = 512, not (2^3)^2 = 64.
+function handlePower() {
+  if (hasError.value) return;
+  justEvaluated.value = false;
+  const s = displayValue.value;
+  if (/[+\-*/^]$/.test(s)) {
+    displayValue.value = s.slice(0, -1) + '^';
+    return;
+  }
+  displayValue.value = s + '^';
+}
+
 /**
  * "±" sign toggle. Flips the sign of the bare number on the display, matching
  * the iOS calculator. A no-op when the display is '0' (so we never render
@@ -318,7 +382,7 @@ function calculateExpression() {
   // A bare number has nothing to evaluate; leave it on the display. A dangling
   // paren such as "(3" has no binary operator but is still malformed, so it is
   // parsed and reported as "Error" like the original parser did.
-  if (!/[+\-*/()]/.test(expression)) {
+  if (!/[+\-*/^()]/.test(expression)) {
     justEvaluated.value = true;
     return;
   }
@@ -365,6 +429,7 @@ function onKey(ev: KeyboardEvent) {
     ev.preventDefault();
     handleOp('/');
   } else if (key === '%') handlePercentage();
+  else if (key === '^') handlePower();
   else if (key === '(' || key === ')') handleSmartParen();
   else if (key === 'Enter' || key === '=') {
     ev.preventDefault();
@@ -631,6 +696,48 @@ onBeforeUnmount(() => {
               aria-label="清除記憶"
               @click="handleMemClear()"
             >MC</button>
+          </div>
+
+          <!--
+            Science row (issue #36 / B2): a permanent 4-key cluster (x² √ 1/x xʸ)
+            sitting ABOVE the keypad, same width/grid as the keypad. The three
+            unary ops (x² √ 1/x) apply to the current number immediately, like
+            '%'; xʸ appends the right-associative power operator '^'.
+          -->
+          <div
+            class="sci-row"
+            data-testid="sci-row"
+            role="group"
+            aria-label="科學運算鍵"
+          >
+            <button
+              class="btn sci"
+              data-test="sci-square"
+              data-label="x²"
+              aria-label="平方"
+              @click="handleSquare()"
+            >x²</button>
+            <button
+              class="btn sci"
+              data-test="sci-sqrt"
+              data-label="√"
+              aria-label="平方根"
+              @click="handleSqrtOp()"
+            >√</button>
+            <button
+              class="btn sci"
+              data-test="sci-recip"
+              data-label="1/x"
+              aria-label="倒數"
+              @click="handleReciprocal()"
+            >1/x</button>
+            <button
+              class="btn sci"
+              data-test="sci-power"
+              data-label="xʸ"
+              aria-label="指數"
+              @click="handlePower()"
+            >xʸ</button>
           </div>
 
           <div class="buttons">
@@ -976,6 +1083,25 @@ onBeforeUnmount(() => {
   letter-spacing: 0.02em;
   background: var(--md-primary-container);
   color: var(--md-on-primary-container);
+}
+
+/* --- Science row (issue #36 / B2): permanent 4-key cluster above the keypad ---
+ * Same grid as the keypad (4 cols, 10px gap) and the same 10px margin to the AC
+ * row, so it reads as one extra uniform row. The keys ride the MD3 tonal
+ * secondary-container with on-secondary-container text — distinct from the
+ * numbered keys (surface-container-highest) but in the same visual family as the
+ * operator keys. `.btn.sci` (two classes) out-specifies the bare `button` rule. */
+.sci-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+button.sci {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  font-weight: 500;
 }
 
 /* Layout: 4 columns x 5 rows, all round buttons the same size. */
