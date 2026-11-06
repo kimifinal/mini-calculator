@@ -75,6 +75,11 @@
    OS「減少動態」時動畫解析 0s。
 7. **測試覆蓋儀表板**：✅ v8 coverage 進 CI、baseline lib 94.9 % / 全 80.7%（#49, PR #50）。
 8. **自訂 accent 色**：⏳ 暫緩（#53 / issue open）；M3 調色盤 + localStorage 待設計確認後實做。
+9. **CI/CD 加固**（#54, PR pending）：✅ 補三項職缺必備——
+   **required status checks**（master 綠了才 merge，API 端 HTTP 200 驗證，公開 repo 也適用）+
+   **ESLint**（`eslint.config.js` flat config，補 vue-tsc 的 lint 缺口，`npm run lint` = `vue-tsc && eslint`）+
+   **Coverage 門檻 gate**（`vite.config.ts` thresholds 80/80/65/80 全低於 baseline 80.71/84.04/70.19/80.71，
+   現在全綠、任何類別退步 >margin 變 RED）。純 infra + 2 行 `--fix` 自動修，0 進 `src/lib/`。
 
 ### D. 收尾（無功能變更，建議最後做）
 - **A3 把審查/量測 artifact 打包進 repo**：`pipeline/*.md`（spec + review report + run log）

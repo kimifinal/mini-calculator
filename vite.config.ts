@@ -112,8 +112,19 @@ export default defineConfig({
         'src/components/Calculator.vue',
       ],
       exclude: ['**/*.d.ts', '**/*.test.ts', '**/*.spec.ts'],
-      // No threshold: report-only (a gate is a C8+ decision, needs the first
-      // real numbers anyway and would otherwise turn the build red).
+      // C9 / #54: coverage THRESHOLD gate. C7 (#49) made coverage report-only
+      // to avoid breaking the build before a baseline existed; C9 adds a real
+      // gate. These are ALL SET BELOW the measured baseline (all-files 80.73 /
+      // 84.04 / 70.19 / 80.73 → thresholds 80 / 80 / 65 / 80), so the gate
+      // PASSES now but any category dropping more than the margin turns
+      // `test:coverage` RED. This IS an "error on regression" gate, but with
+      // deliberate headroom for v8 measurement noise between local and CI.
+      thresholds: {
+        statements: 80,
+        branches: 80,
+        functions: 65,
+        lines: 80,
+      },
     },
   },
 });
