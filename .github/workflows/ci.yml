@@ -29,14 +29,22 @@ jobs:
       - name: Type check
         run: npm run lint
 
+      # C9 / #54: ESLint step — complements vue-tsc (style + static checks).
+      # eslint already runs in `npm run lint` above, so this dedicated step is
+      # a VISIBLE second gate; the job name `Lint + Unit + E2E` reflects it.
+      - name: Lint (ESLint)
+        run: npm run lint:eslint
+
       - name: Unit tests
         run: npm run test:unit
 
-      # C7 (#49): report test coverage (c8 / v8). Report-only — NO threshold
-      # gate yet, so it can't break the build. The point is to make "which
-      # src/lib/ path a test never reached" visible; a numeric gate is a
-      # separate, later C8+ decision once real baseline numbers are visible.
-      - name: Coverage report
+      # C7 → C9 / #54→#49: coverage v8 report + a real regression GATE.
+      # C7 made it report-only; C9 adds thresholds to vite.config.ts
+      # (statements/branches/functions/lines: 80/80/65/80 — all set below the
+      # measured baseline, so the gate PASSES now but any >margin drop in any
+      # category turns `test:coverage` RED). This is the "catch regressions"
+      # half; the report is uploaded as an artifact for human inspection.
+      - name: Coverage gate
         run: npm run test:coverage
 
       - name: Upload coverage report

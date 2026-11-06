@@ -595,8 +595,7 @@ onBeforeUnmount(() => {
           data-label="theme"
           @click="cycleTheme()"
           :aria-label="themeAriaLabel"
-          >{{ themeMode === 'light' ? '☀' : themeMode === 'dark' ? '☾' : 'A' }}</button
-        >
+        >{{ themeMode === 'light' ? '☀' : themeMode === 'dark' ? '☾' : 'A' }}</button>
       </div>
 
       <!--
